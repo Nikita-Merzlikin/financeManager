@@ -13,11 +13,11 @@ import {
 })
 export class User extends Model {
   @Column({
-    type: DataType.INTEGER,
+    type: DataType.UUID,
     primaryKey: true,
     autoIncrement: true,
   })
-  declare id: number;
+  declare id: string;
 
   @Column({
     type: DataType.STRING,
