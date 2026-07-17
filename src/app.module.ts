@@ -2,11 +2,11 @@ import { Module } from "@nestjs/common";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 
-import { FirstModule } from "./first/first.module";
-import { UserModule } from './user/user.module';
+import { UserModule } from "./user/user.module";
+import { DatabaseModule } from "./db/db.mosyle";
 
 @Module({
-  imports: [FirstModule, UserModule],
+  imports: [UserModule, DatabaseModule],
   controllers: [AppController],
   providers: [AppService],
 })

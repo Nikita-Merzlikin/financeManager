@@ -1,7 +1,7 @@
 import { Body, Controller, Post, UseInterceptors } from "@nestjs/common";
 import { AnyFilesInterceptor } from "@nestjs/platform-express";
 import { UserService } from "./user.service";
-import { CreateUserDto } from "src/core/dto/user.dto";
+import { CreateUserDto, UserDto } from "src/core/dto/user.dto";
 
 @Controller("auth")
 export class UserController {
@@ -9,7 +9,7 @@ export class UserController {
 
   @Post("register")
   @UseInterceptors(AnyFilesInterceptor())
-  createUser(@Body() dto: CreateUserDto) {
+  createUser(@Body() dto: CreateUserDto): Promise<UserDto> {
     return this.userService.createUser(dto);
   }
 }

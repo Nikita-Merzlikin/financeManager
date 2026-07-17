@@ -14,3 +14,12 @@ export class CreateUserDto {
   @MinLength(8)
   password!: string;
 }
+
+export type UserDto = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
