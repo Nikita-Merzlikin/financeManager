@@ -22,8 +22,6 @@ export class CreateUserDto {
   @MinLength(8)
   password!: string;
 }
-<<<<<<< Updated upstream
-=======
 
 export class UserDto {
   @ApiProperty()
@@ -44,4 +42,3 @@ export class UserDto {
   @ApiProperty()
   updatedAt!: Date;
 }
->>>>>>> Stashed changes

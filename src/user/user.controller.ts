@@ -1,12 +1,8 @@
 import { Body, Controller, Get, Post, UseInterceptors } from "@nestjs/common";
 import { AnyFilesInterceptor } from "@nestjs/platform-express";
 import { UserService } from "./user.service";
-<<<<<<< Updated upstream
-import { CreateUserDto } from "src/core/dto/user.dto";
-=======
 import { CreateUserDto, UserDto } from "src/core/dto/user.dto";
 import { ApiHeader, ApiOperation, ApiResponse } from "@nestjs/swagger";
->>>>>>> Stashed changes
 
 @ApiHeader({
   name: "x-unit-system",
@@ -48,7 +44,7 @@ import { ApiHeader, ApiOperation, ApiResponse } from "@nestjs/swagger";
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @ApiOperation({ summary: "Used to  register user" })
+  @ApiOperation({ summary: "Used to register user" })
   @ApiResponse({
     status: 201,
     description: "User was registered",
@@ -56,19 +52,19 @@ export class UserController {
   })
   @Post("register")
   @UseInterceptors(AnyFilesInterceptor())
-  createUser(@Body() dto: CreateUserDto) {
+  createUser(@Body() dto: CreateUserDto): Promise<UserDto> {
     return this.userService.createUser(dto);
   }
 
   @ApiOperation({ summary: "Used to get all users" })
   @ApiResponse({
-    status: 201,
+    status: 200,
     description: "All users were got",
     type: UserDto,
     isArray: true,
   })
   @Get("allUSer")
-  getUSers() {
+  getUSers(): Promise<UserDto[]> {
     return this.userService.getAllUser();
   }
 }
