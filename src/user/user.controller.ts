@@ -57,7 +57,8 @@ export class UserController {
   @ApiBearerAuth("access-token")
   @ApiOperation({
     summary: "Get all users",
-    description: "Private endpoint. Requires Authorization: Bearer <accessToken>.",
+    description:
+      "Private endpoint. Requires Authorization: Bearer <accessToken>.",
   })
   @ApiOkResponse({
     description: "List of users",
