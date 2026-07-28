@@ -1,28 +1,47 @@
 import { ConflictException, Injectable } from "@nestjs/common";
-import { CreateUserDto } from "src/core/dto/user.dto";
-import { User } from "src/db/dbModels/User";
+import { InjectModel } from "@nestjs/sequelize";
 import * as bcrypt from "bcrypt";
+import { CreateUserDto, UserDto } from "src/core/dto/user.dto";
+import { User } from "src/db/dbModels/User";
 
 @Injectable()
 export class UserService {
-  async createUser(dto: CreateUserDto) {
-    const existingUser = await User.findOne({
-      where: {
-        email: dto.email,
-      },
+  constructor(
+    @InjectModel(User)
+    private readonly userModel: typeof User,
+  ) {}
+
+  toUserDto(user: User): UserDto {
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  async createUser(userData: CreateUserDto): Promise<User> {
+    const existingUser = await this.userModel.findOne({
+      where: { email: userData.email },
     });
 
     if (existingUser) {
       throw new ConflictException("User with this email already exists");
     }
-    const hash = await bcrypt.hash(dto.password, 10);
-    const newUser = await User.create({
-      lastName: dto.lastName,
-      firstName: dto.firstName,
-      email: dto.email,
+
+    const hash = await bcrypt.hash(userData.password, 10);
+    return this.userModel.create({
+      lastName: userData.lastName,
+      firstName: userData.firstName,
+      email: userData.email,
       password: hash,
     });
+  }
 
-    return newUser;
+  async getAllUser(): Promise<UserDto[]> {
+    const users = await this.userModel.findAll();
+    return users.map((user) => this.toUserDto(user));
   }
 }

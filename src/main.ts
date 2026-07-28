@@ -1,17 +1,32 @@
 import { NestFactory } from "@nestjs/core";
-import { AppModule } from "./app.module";
-import { sequelize } from "./db/db";
 import { ValidationPipe } from "@nestjs/common";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import dotenv from "dotenv";
+import { AppModule } from "./app.module";
+
+dotenv.config();
 
 async function bootstrap() {
-  try {
-    await sequelize.authenticate();
-    await sequelize.sync({ alter: true });
-    console.log("✅ Database connected");
-  } catch (e) {
-    console.error("❌ Database connection failed", e);
-  }
   const app = await NestFactory.create(AppModule);
+
+  const config = new DocumentBuilder()
+    .setTitle("Finance Manager")
+    .setDescription("Finance Manager API")
+    .setVersion("1.0")
+    .addBearerAuth(
+      {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        description: "Paste accessToken from /auth/login",
+      },
+      "access-token",
+    )
+    .build();
+
+  const document = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup("api/doc", app, document);
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
