@@ -28,8 +28,11 @@ export class CreateUserDto {
 }
 
 export class UserDto {
-  @ApiProperty({ description: "User id", example: 1 })
-  id!: number;
+  @ApiProperty({
+    description: "User id",
+    example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  })
+  id!: string;
 
   @ApiProperty({ example: "Pavlo" })
   firstName!: string;

@@ -22,10 +22,10 @@ export class Session extends Model {
 
   @ForeignKey(() => User)
   @Column({
-    type: DataType.INTEGER,
+    type: DataType.UUID,
     allowNull: false,
   })
-  declare userId: number;
+  declare userId: string;
 
   @BelongsTo(() => User)
   declare user: User;

@@ -11,14 +11,10 @@ import { AuthTokensDto } from "src/core/dto/auth-tokens.dto";
 import { CreateUserDto } from "src/core/dto/user.dto";
 import { LoginDto } from "src/core/dto/login.dto";
 import { RegisterResponseDto } from "src/core/dto/register-response.dto";
+import { SessionMeta } from "src/core/types/session-meta.type";
 import { Session } from "src/db/dbModels/Session";
 import { User } from "src/db/dbModels/User";
 import { UserService } from "src/user/user.service";
-
-type SessionMeta = {
-  ipAddress?: string;
-  userAgent?: string;
-};
 
 @Injectable()
 export class AuthService {
@@ -108,7 +104,7 @@ export class AuthService {
     meta: SessionMeta,
   ): Promise<AuthTokensDto> {
     const accessToken = await this.jwtService.signAsync(
-      { sub: String(user.id), email: user.email },
+      { sub: user.id, email: user.email },
       {
         secret: process.env.JWT_ACCESS_SECRET || "access-secret-change-me",
         expiresIn: this.accessExpiresIn as `${number}${"s" | "m" | "h" | "d"}`,

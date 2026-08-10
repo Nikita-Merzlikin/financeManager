@@ -7,11 +7,11 @@ import { Session } from "./Session";
 })
 export class User extends Model {
   @Column({
-    type: DataType.INTEGER,
-    autoIncrement: true,
+    type: DataType.UUID,
+    defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  declare id: number;
+  declare id: string;
 
   @Column({
     type: DataType.STRING,
