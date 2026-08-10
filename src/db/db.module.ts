@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { SequelizeModule } from "@nestjs/sequelize";
 import { User } from "./dbModels/User";
+import { Session } from "./dbModels/Session";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -16,7 +17,7 @@ dotenv.config();
       password: process.env.DB_PASSWORD,
       autoLoadModels: true,
       synchronize: true,
-      models: [User],
+      models: [User, Session],
     }),
   ],
 })

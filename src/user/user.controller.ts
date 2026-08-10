@@ -1,9 +1,17 @@
-import { Body, Controller, Get, Post, UseInterceptors } from "@nestjs/common";
-import { AnyFilesInterceptor } from "@nestjs/platform-express";
+import { Controller, Get, UseGuards } from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { UserDto } from "src/core/dto/user.dto";
 import { UserService } from "./user.service";
-import { CreateUserDto, UserDto } from "src/core/dto/user.dto";
-import { ApiHeader, ApiOperation, ApiResponse } from "@nestjs/swagger";
 
+@ApiTags("user")
 @ApiHeader({
   name: "x-unit-system",
   required: false,
@@ -44,26 +52,22 @@ import { ApiHeader, ApiOperation, ApiResponse } from "@nestjs/swagger";
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @ApiOperation({ summary: "Used to register user" })
-  @ApiResponse({
-    status: 201,
-    description: "User was registered",
-    type: UserDto,
+  @Get("allUSer")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("access-token")
+  @ApiOperation({
+    summary: "Get all users",
+    description:
+      "Private endpoint. Requires Authorization: Bearer <accessToken>.",
   })
-  @Post("register")
-  @UseInterceptors(AnyFilesInterceptor())
-  createUser(@Body() dto: CreateUserDto): Promise<UserDto> {
-    return this.userService.createUser(dto);
-  }
-
-  @ApiOperation({ summary: "Used to get all users" })
-  @ApiResponse({
-    status: 200,
-    description: "All users were got",
+  @ApiOkResponse({
+    description: "List of users",
     type: UserDto,
     isArray: true,
   })
-  @Get("allUSer")
+  @ApiUnauthorizedResponse({
+    description: "Missing or invalid access token",
+  })
   getUSers(): Promise<UserDto[]> {
     return this.userService.getAllUser();
   }
