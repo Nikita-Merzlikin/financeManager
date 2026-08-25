@@ -1,5 +1,13 @@
-import { Table, Column, Model, DataType, HasMany } from "sequelize-typescript";
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  HasMany,
+  HasOne,
+} from "sequelize-typescript";
 import { Session } from "./Session";
+import { UserProfile } from "./UserProfile";
 
 @Table({
   tableName: "Users",
@@ -37,6 +45,9 @@ export class User extends Model {
 
   @HasMany(() => Session)
   declare sessions: Session[];
+
+  @HasOne(() => UserProfile)
+  declare profile: UserProfile;
 
   declare createdAt: Date;
   declare updatedAt: Date;

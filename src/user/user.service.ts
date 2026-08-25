@@ -3,12 +3,14 @@ import { InjectModel } from "@nestjs/sequelize";
 import * as bcrypt from "bcrypt";
 import { CreateUserDto, UserDto } from "src/core/dto/user.dto";
 import { User } from "src/db/dbModels/User";
+import { ProfileService } from "src/profile/profile.service";
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectModel(User)
     private readonly userModel: typeof User,
+    private readonly profileService: ProfileService,
   ) {}
 
   toUserDto(user: User): UserDto {
@@ -32,12 +34,19 @@ export class UserService {
     }
 
     const hash = await bcrypt.hash(userData.password, 10);
-    return this.userModel.create({
+    const user = await this.userModel.create({
       lastName: userData.lastName,
       firstName: userData.firstName,
       email: userData.email,
       password: hash,
     });
+
+    await this.profileService.createForUser(user.id, {
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+    });
+
+    return user;
   }
 
   async getAllUser(): Promise<UserDto[]> {
