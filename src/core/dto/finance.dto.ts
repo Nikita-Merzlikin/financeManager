@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsBoolean,
-  IsIn,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -9,6 +9,13 @@ import {
   MaxLength,
   Min,
 } from "class-validator";
+import { IsIbanField } from "src/core/decorators/is-iban.decorator";
+import {
+  AccountSource,
+  AccountType,
+  BankProvider,
+  TransactionType,
+} from "src/core/enums/finance.enums";
 
 export class CreateAccountDto {
   @ApiProperty({ example: "Cash" })
@@ -16,13 +23,10 @@ export class CreateAccountDto {
   @MaxLength(100)
   name!: string;
 
-  @ApiPropertyOptional({
-    enum: ["cash", "card", "bank", "jar", "fop", "other"],
-    default: "card",
-  })
+  @ApiPropertyOptional({ enum: AccountType, default: AccountType.CARD })
   @IsOptional()
-  @IsIn(["cash", "card", "bank", "jar", "fop", "other"])
-  type?: "cash" | "card" | "bank" | "jar" | "fop" | "other";
+  @IsEnum(AccountType)
+  type?: AccountType;
 
   @ApiPropertyOptional({ example: "UAH", default: "UAH" })
   @IsOptional()
@@ -35,9 +39,7 @@ export class CreateAccountDto {
   @IsNumber()
   balance?: number;
 
-  @ApiPropertyOptional({ example: "UA123..." })
-  @IsOptional()
-  @IsString()
+  @IsIbanField({ required: false, example: "UA123..." })
   iban?: string;
 }
 
@@ -48,12 +50,10 @@ export class UpdateAccountDto {
   @MaxLength(100)
   name?: string;
 
-  @ApiPropertyOptional({
-    enum: ["cash", "card", "bank", "jar", "fop", "other"],
-  })
+  @ApiPropertyOptional({ enum: AccountType })
   @IsOptional()
-  @IsIn(["cash", "card", "bank", "jar", "fop", "other"])
-  type?: "cash" | "card" | "bank" | "jar" | "fop" | "other";
+  @IsEnum(AccountType)
+  type?: AccountType;
 
   @ApiPropertyOptional({ example: 1500.5 })
   @IsOptional()
@@ -65,9 +65,7 @@ export class UpdateAccountDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
+  @IsIbanField({ required: false })
   iban?: string;
 }
 
@@ -78,11 +76,11 @@ export class AccountDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty()
-  source!: string;
+  @ApiProperty({ enum: AccountSource })
+  source!: AccountSource;
 
-  @ApiProperty()
-  type!: string;
+  @ApiProperty({ enum: AccountType })
+  type!: AccountType;
 
   @ApiProperty()
   currency!: string;
@@ -105,9 +103,9 @@ export class CreateTransactionDto {
   @IsUUID()
   accountId!: string;
 
-  @ApiProperty({ enum: ["income", "expense"] })
-  @IsIn(["income", "expense"])
-  type!: "income" | "expense";
+  @ApiProperty({ enum: TransactionType })
+  @IsEnum(TransactionType)
+  type!: TransactionType;
 
   @ApiProperty({ example: 250.5 })
   @IsNumber()
@@ -137,10 +135,10 @@ export class CreateTransactionDto {
 }
 
 export class UpdateTransactionDto {
-  @ApiPropertyOptional({ enum: ["income", "expense"] })
+  @ApiPropertyOptional({ enum: TransactionType })
   @IsOptional()
-  @IsIn(["income", "expense"])
-  type?: "income" | "expense";
+  @IsEnum(TransactionType)
+  type?: TransactionType;
 
   @ApiPropertyOptional({ example: 100 })
   @IsOptional()
@@ -175,8 +173,8 @@ export class TransactionDto {
   @ApiPropertyOptional({ nullable: true })
   categoryId!: string | null;
 
-  @ApiProperty()
-  type!: string;
+  @ApiProperty({ enum: TransactionType })
+  type!: TransactionType;
 
   @ApiProperty()
   amount!: number;
@@ -190,8 +188,8 @@ export class TransactionDto {
   @ApiProperty()
   occurredAt!: Date;
 
-  @ApiProperty()
-  source!: string;
+  @ApiProperty({ enum: AccountSource })
+  source!: AccountSource;
 }
 
 export class CategoryDto {
@@ -201,8 +199,8 @@ export class CategoryDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty()
-  type!: string;
+  @ApiProperty({ enum: TransactionType })
+  type!: TransactionType;
 
   @ApiPropertyOptional({ nullable: true })
   icon!: string | null;
@@ -214,9 +212,9 @@ export class CreateCategoryDto {
   @MaxLength(100)
   name!: string;
 
-  @ApiProperty({ enum: ["income", "expense"] })
-  @IsIn(["income", "expense"])
-  type!: "income" | "expense";
+  @ApiProperty({ enum: TransactionType })
+  @IsEnum(TransactionType)
+  type!: TransactionType;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -246,11 +244,10 @@ export class ConnectPrivatDto {
   @IsString()
   token!: string;
 
-  @ApiProperty({
+  @IsIbanField({
     description: "FOP account IBAN to sync",
     example: "UA123456789012345678901234567",
   })
-  @IsString()
   iban!: string;
 
   @ApiPropertyOptional({ example: "Privat FOP" })
@@ -268,6 +265,23 @@ export class SyncBankDto {
   @IsNumber()
   @Min(1)
   days?: number;
+}
+
+export class BankConnectionResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: BankProvider })
+  provider!: BankProvider;
+
+  @ApiPropertyOptional({ nullable: true })
+  label!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastSyncedAt!: Date | null;
+
+  @ApiPropertyOptional()
+  message?: string;
 }
 
 export class DashboardDto {

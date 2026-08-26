@@ -2,24 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { Op } from "sequelize";
 import { CategoryDto, CreateCategoryDto } from "src/core/dto/finance.dto";
+import { DEFAULT_CATEGORIES } from "src/db/seeds/default-categories";
 import { Category } from "src/db/dbModels/Category";
-
-const DEFAULT_CATEGORIES: Array<{
-  name: string;
-  type: "income" | "expense";
-  icon: string;
-}> = [
-  { name: "Salary", type: "income", icon: "salary" },
-  { name: "Freelance", type: "income", icon: "work" },
-  { name: "Other income", type: "income", icon: "plus" },
-  { name: "Food", type: "expense", icon: "food" },
-  { name: "Transport", type: "expense", icon: "transport" },
-  { name: "Home", type: "expense", icon: "home" },
-  { name: "Health", type: "expense", icon: "health" },
-  { name: "Entertainment", type: "expense", icon: "fun" },
-  { name: "Savings transfer", type: "expense", icon: "piggy" },
-  { name: "Other expense", type: "expense", icon: "minus" },
-];
 
 @Injectable()
 export class CategoriesService {
@@ -37,17 +21,16 @@ export class CategoriesService {
     };
   }
 
-  async ensureDefaults(userId: string): Promise<void> {
+  /** Ensures system defaults exist (prefer running db:seed). */
+  async ensureDefaults(): Promise<void> {
     const count = await this.categoryModel.count({
-      where: {
-        [Op.or]: [{ userId }, { userId: null }],
-      },
+      where: { userId: null },
     });
     if (count > 0) return;
 
     await this.categoryModel.bulkCreate(
       DEFAULT_CATEGORIES.map((item) => ({
-        userId,
+        userId: null,
         name: item.name,
         type: item.type,
         icon: item.icon,
@@ -56,12 +39,15 @@ export class CategoriesService {
   }
 
   async list(userId: string): Promise<CategoryDto[]> {
-    await this.ensureDefaults(userId);
+    await this.ensureDefaults();
     const categories = await this.categoryModel.findAll({
       where: {
         [Op.or]: [{ userId }, { userId: null }],
       },
-      order: [["type", "ASC"], ["name", "ASC"]],
+      order: [
+        ["type", "ASC"],
+        ["name", "ASC"],
+      ],
     });
     return categories.map((item) => this.toDto(item));
   }

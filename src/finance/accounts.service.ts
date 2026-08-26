@@ -9,8 +9,16 @@ import {
   CreateAccountDto,
   UpdateAccountDto,
 } from "src/core/dto/finance.dto";
+import {
+  AccountSource,
+  AccountType,
+} from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
-import { formatMoney, toMoney } from "./finance.utils";
+import {
+  formatMinorUnits,
+  fromMinorUnits,
+  toMinorUnits,
+} from "./finance.utils";
 
 @Injectable()
 export class AccountsService {
@@ -26,7 +34,7 @@ export class AccountsService {
       source: account.source,
       type: account.type,
       currency: account.currency,
-      balance: toMoney(account.balance),
+      balance: fromMinorUnits(account.balance),
       iban: account.iban,
       isActive: account.isActive,
       bankConnectionId: account.bankConnectionId,
@@ -45,10 +53,10 @@ export class AccountsService {
     const account = await this.accountModel.create({
       userId,
       name: dto.name,
-      type: dto.type ?? "card",
+      type: dto.type ?? AccountType.CARD,
       currency: dto.currency ?? "UAH",
-      balance: formatMoney(dto.balance ?? 0),
-      source: "manual",
+      balance: formatMinorUnits(toMinorUnits(dto.balance ?? 0)),
+      source: AccountSource.MANUAL,
       iban: dto.iban ?? null,
       isActive: true,
     });
@@ -64,7 +72,9 @@ export class AccountsService {
     await account.update({
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.type !== undefined && { type: dto.type }),
-      ...(dto.balance !== undefined && { balance: formatMoney(dto.balance) }),
+      ...(dto.balance !== undefined && {
+        balance: formatMinorUnits(toMinorUnits(dto.balance)),
+      }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       ...(dto.iban !== undefined && { iban: dto.iban }),
     });
@@ -73,7 +83,7 @@ export class AccountsService {
 
   async remove(userId: string, accountId: string): Promise<{ message: string }> {
     const account = await this.findOwned(userId, accountId);
-    if (account.source !== "manual") {
+    if (account.source !== AccountSource.MANUAL) {
       throw new ForbiddenException("Bank accounts can only be disconnected");
     }
     await account.destroy();

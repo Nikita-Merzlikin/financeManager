@@ -10,11 +10,22 @@ import {
   TransactionDto,
   UpdateTransactionDto,
 } from "src/core/dto/finance.dto";
+import {
+  AccountSource,
+  TransactionType,
+} from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
 import { AccountsService } from "./accounts.service";
-import { formatMoney, toMoney } from "./finance.utils";
+import {
+  addMinor,
+  formatMinorUnits,
+  fromMinorUnits,
+  parseMinorUnits,
+  subMinor,
+  toMinorUnits,
+} from "./finance.utils";
 
 @Injectable()
 export class TransactionsService {
@@ -32,7 +43,7 @@ export class TransactionsService {
       accountId: tx.accountId,
       categoryId: tx.categoryId,
       type: tx.type,
-      amount: toMoney(tx.amount),
+      amount: fromMinorUnits(tx.amount),
       currency: tx.currency,
       description: tx.description,
       occurredAt: tx.occurredAt,
@@ -69,20 +80,20 @@ export class TransactionsService {
       await this.assertCategory(userId, dto.categoryId, dto.type);
     }
 
-    const amount = toMoney(dto.amount);
+    const amountMinor = toMinorUnits(dto.amount);
     const tx = await this.transactionModel.create({
       userId,
       accountId: account.id,
       categoryId: dto.categoryId ?? null,
       type: dto.type,
-      amount: formatMoney(amount),
+      amount: formatMinorUnits(amountMinor),
       currency: dto.currency ?? account.currency,
       description: dto.description ?? null,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
-      source: "manual",
+      source: AccountSource.MANUAL,
     });
 
-    await this.applyBalanceDelta(account, dto.type, amount);
+    await this.applyBalanceDelta(account, dto.type, amountMinor);
     return this.toDto(tx);
   }
 
@@ -92,20 +103,23 @@ export class TransactionsService {
     dto: UpdateTransactionDto,
   ): Promise<TransactionDto> {
     const tx = await this.findOwned(userId, transactionId);
-    if (tx.source !== "manual") {
+    if (tx.source !== AccountSource.MANUAL) {
       throw new BadRequestException("Only manual transactions can be edited");
     }
 
     const account = await this.accountsService.findOwned(userId, tx.accountId);
-    const oldAmount = toMoney(tx.amount);
+    const oldAmount = parseMinorUnits(tx.amount);
     await this.applyBalanceDelta(
       account,
-      tx.type === "income" ? "expense" : "income",
+      tx.type === TransactionType.INCOME
+        ? TransactionType.EXPENSE
+        : TransactionType.INCOME,
       oldAmount,
     );
 
     const nextType = dto.type ?? tx.type;
-    const nextAmount = dto.amount !== undefined ? toMoney(dto.amount) : oldAmount;
+    const nextAmount =
+      dto.amount !== undefined ? toMinorUnits(dto.amount) : oldAmount;
 
     if (dto.categoryId) {
       await this.assertCategory(userId, dto.categoryId, nextType);
@@ -113,7 +127,9 @@ export class TransactionsService {
 
     await tx.update({
       ...(dto.type !== undefined && { type: dto.type }),
-      ...(dto.amount !== undefined && { amount: formatMoney(dto.amount) }),
+      ...(dto.amount !== undefined && {
+        amount: formatMinorUnits(toMinorUnits(dto.amount)),
+      }),
       ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
       ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.occurredAt !== undefined && {
@@ -130,14 +146,16 @@ export class TransactionsService {
     transactionId: string,
   ): Promise<{ message: string }> {
     const tx = await this.findOwned(userId, transactionId);
-    if (tx.source !== "manual") {
+    if (tx.source !== AccountSource.MANUAL) {
       throw new BadRequestException("Only manual transactions can be deleted");
     }
     const account = await this.accountsService.findOwned(userId, tx.accountId);
     await this.applyBalanceDelta(
       account,
-      tx.type === "income" ? "expense" : "income",
-      toMoney(tx.amount),
+      tx.type === TransactionType.INCOME
+        ? TransactionType.EXPENSE
+        : TransactionType.INCOME,
+      parseMinorUnits(tx.amount),
     );
     await tx.destroy();
     return { message: "Transaction deleted" };
@@ -157,7 +175,7 @@ export class TransactionsService {
   private async assertCategory(
     userId: string,
     categoryId: string,
-    type: "income" | "expense",
+    type: TransactionType,
   ): Promise<void> {
     const category = await this.categoryModel.findByPk(categoryId);
     if (
@@ -171,11 +189,13 @@ export class TransactionsService {
 
   private async applyBalanceDelta(
     account: Account,
-    type: "income" | "expense",
-    amount: number,
+    type: TransactionType,
+    amountMinor: bigint,
   ): Promise<void> {
-    const current = toMoney(account.balance);
-    const next = type === "income" ? current + amount : current - amount;
-    await account.update({ balance: formatMoney(next) });
+    const next =
+      type === TransactionType.INCOME
+        ? addMinor(account.balance, amountMinor)
+        : subMinor(account.balance, amountMinor);
+    await account.update({ balance: formatMinorUnits(next) });
   }
 }

@@ -7,6 +7,10 @@ import {
   BelongsTo,
   HasMany,
 } from "sequelize-typescript";
+import {
+  AccountSource,
+  AccountType,
+} from "src/core/enums/finance.enums";
 import { User } from "./User";
 import { BankConnection } from "./BankConnection";
 import { Transaction } from "./Transaction";
@@ -50,18 +54,18 @@ export class Account extends Model {
   declare name: string;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.ENUM(...Object.values(AccountSource)),
     allowNull: false,
-    defaultValue: "manual",
+    defaultValue: AccountSource.MANUAL,
   })
-  declare source: "manual" | "monobank" | "privat";
+  declare source: AccountSource;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.ENUM(...Object.values(AccountType)),
     allowNull: false,
-    defaultValue: "card",
+    defaultValue: AccountType.CARD,
   })
-  declare type: "cash" | "card" | "bank" | "jar" | "fop" | "other";
+  declare type: AccountType;
 
   @Column({
     type: DataType.STRING,
@@ -70,8 +74,9 @@ export class Account extends Model {
   })
   declare currency: string;
 
+  /** Stored as BIGINT minor units (cents). Convert only at API boundary. */
   @Column({
-    type: DataType.DECIMAL(14, 2),
+    type: DataType.BIGINT,
     allowNull: false,
     defaultValue: 0,
   })

@@ -6,6 +6,7 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import { TransactionType } from "src/core/enums/finance.enums";
 import { User } from "./User";
 
 @Table({
@@ -37,10 +38,10 @@ export class Category extends Model {
   declare name: string;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.ENUM(...Object.values(TransactionType)),
     allowNull: false,
   })
-  declare type: "income" | "expense";
+  declare type: TransactionType;
 
   @Column({
     type: DataType.STRING,

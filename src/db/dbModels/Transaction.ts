@@ -6,6 +6,10 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import {
+  AccountSource,
+  TransactionType,
+} from "src/core/enums/finance.enums";
 import { User } from "./User";
 import { Account } from "./Account";
 import { Category } from "./Category";
@@ -53,13 +57,14 @@ export class Transaction extends Model {
   declare category: Category | null;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.ENUM(...Object.values(TransactionType)),
     allowNull: false,
   })
-  declare type: "income" | "expense";
+  declare type: TransactionType;
 
+  /** Stored as BIGINT minor units (cents). Convert only at API boundary. */
   @Column({
-    type: DataType.DECIMAL(14, 2),
+    type: DataType.BIGINT,
     allowNull: false,
   })
   declare amount: string;
@@ -84,11 +89,11 @@ export class Transaction extends Model {
   declare occurredAt: Date;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.ENUM(...Object.values(AccountSource)),
     allowNull: false,
-    defaultValue: "manual",
+    defaultValue: AccountSource.MANUAL,
   })
-  declare source: "manual" | "monobank" | "privat";
+  declare source: AccountSource;
 
   @Column({
     type: DataType.STRING,

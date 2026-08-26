@@ -4,51 +4,25 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { fromMinorUnits } from "../finance.utils";
+import { MONO_ENDPOINTS } from "./monobank.constants";
+import type {
+  MonoClientInfo,
+  MonoStatementItem,
+} from "./monobank.types";
 
-export type MonoAccount = {
-  id: string;
-  balance: number;
-  creditLimit: number;
-  type: string;
-  currencyCode: number;
-  maskedPan?: string[];
-  iban?: string;
-};
-
-export type MonoJar = {
-  id: string;
-  title: string;
-  balance: number;
-  goal?: number;
-  currencyCode: number;
-};
-
-export type MonoClientInfo = {
-  clientId: string;
-  name: string;
-  accounts: MonoAccount[];
-  jars?: MonoJar[];
-};
-
-export type MonoStatementItem = {
-  id: string;
-  time: number;
-  description: string;
-  mcc: number;
-  amount: number;
-  currencyCode: number;
-  balance: number;
-  comment?: string;
-};
+export type {
+  MonoAccount,
+  MonoJar,
+  MonoClientInfo,
+  MonoStatementItem,
+} from "./monobank.types";
 
 @Injectable()
 export class MonobankClient {
   private readonly logger = new Logger(MonobankClient.name);
-  private readonly baseUrl = "https://api.monobank.ua";
 
   async getClientInfo(token: string): Promise<MonoClientInfo> {
-    return this.request<MonoClientInfo>("/personal/client-info", token);
+    return this.request<MonoClientInfo>(MONO_ENDPOINTS.CLIENT_INFO, token);
   }
 
   async getStatement(
@@ -59,13 +33,13 @@ export class MonobankClient {
   ): Promise<MonoStatementItem[]> {
     const to = toUnix ?? Math.floor(Date.now() / 1000);
     return this.request<MonoStatementItem[]>(
-      `/personal/statement/${accountId}/${fromUnix}/${to}`,
+      `${MONO_ENDPOINTS.STATEMENT}/${accountId}/${fromUnix}/${to}`,
       token,
     );
   }
 
   async setWebhook(token: string, webHookUrl: string): Promise<void> {
-    await this.request("/personal/webhook", token, {
+    await this.request(MONO_ENDPOINTS.WEBHOOK, token, {
       method: "POST",
       body: JSON.stringify({ webHookUrl }),
     });
@@ -78,17 +52,17 @@ export class MonobankClient {
     return String(code);
   }
 
-  toMajorAmount(minor: number): number {
-    return fromMinorUnits(Math.abs(minor));
+  toMinorAmount(minor: number): bigint {
+    return BigInt(Math.abs(Math.trunc(minor)));
   }
 
   private async request<T>(
-    path: string,
+    url: string,
     token: string,
     init?: RequestInit,
   ): Promise<T> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(url, {
         ...init,
         headers: {
           "X-Token": token,
@@ -105,13 +79,13 @@ export class MonobankClient {
 
       if (!response.ok) {
         const text = await response.text();
-        this.logger.error(`Monobank ${path} failed: ${response.status}`);
+        this.logger.error(`Monobank ${url} failed: ${response.status}`);
         throw new BadRequestException(
           text || `Monobank request failed with status ${response.status}`,
         );
       }
 
-      if (response.status === 200 && path === "/personal/webhook") {
+      if (response.status === 200 && url === MONO_ENDPOINTS.WEBHOOK) {
         return undefined as T;
       }
 
@@ -123,7 +97,7 @@ export class MonobankClient {
       ) {
         throw error;
       }
-      this.logger.error(`Monobank network error on ${path}`);
+      this.logger.error(`Monobank network error on ${url}`);
       throw new ServiceUnavailableException("Monobank is unavailable");
     }
   }

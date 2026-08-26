@@ -2,12 +2,21 @@ import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { Op } from "sequelize";
 import { DashboardDto } from "src/core/dto/finance.dto";
+import {
+  AccountType,
+  TransactionType,
+} from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
 import { AccountsService } from "./accounts.service";
 import { CategoriesService } from "./categories.service";
-import { toMoney } from "./finance.utils";
+import {
+  addMinor,
+  fromMinorUnits,
+  parseMinorUnits,
+  subMinor,
+} from "./finance.utils";
 
 @Injectable()
 export class DashboardService {
@@ -27,7 +36,7 @@ export class DashboardService {
     from?: string,
     to?: string,
   ): Promise<DashboardDto> {
-    await this.categoriesService.ensureDefaults(userId);
+    await this.categoriesService.ensureDefaults();
 
     const periodTo = to ? new Date(to) : new Date();
     const periodFrom = from
@@ -42,13 +51,13 @@ export class DashboardService {
       where: { userId, isActive: true },
     });
 
-    const balance = accounts.reduce(
-      (sum, account) => sum + toMoney(account.balance),
-      0,
+    const balanceMinor = accounts.reduce(
+      (sum, account) => addMinor(sum, account.balance),
+      0n,
     );
-    const savings = accounts
-      .filter((account) => account.type === "jar")
-      .reduce((sum, account) => sum + toMoney(account.balance), 0);
+    const savingsMinor = accounts
+      .filter((account) => account.type === AccountType.JAR)
+      .reduce((sum, account) => addMinor(sum, account.balance), 0n);
 
     const transactions = await this.transactionModel.findAll({
       where: {
@@ -62,45 +71,49 @@ export class DashboardService {
       order: [["occurredAt", "ASC"]],
     });
 
-    let income = 0;
-    let expenses = 0;
-    const dailyMap = new Map<string, { income: number; expense: number }>();
+    let incomeMinor = 0n;
+    let expensesMinor = 0n;
+    const dailyMap = new Map<string, { income: bigint; expense: bigint }>();
     const categoryMap = new Map<
       string,
-      { categoryId: string | null; name: string; type: string; total: number }
+      { categoryId: string | null; name: string; type: string; total: bigint }
     >();
 
     for (const tx of transactions) {
-      const amount = toMoney(tx.amount);
+      const amount = parseMinorUnits(tx.amount);
       const day = tx.occurredAt.toISOString().slice(0, 10);
-      const daily = dailyMap.get(day) ?? { income: 0, expense: 0 };
+      const daily = dailyMap.get(day) ?? { income: 0n, expense: 0n };
 
-      if (tx.type === "income") {
-        income += amount;
-        daily.income += amount;
+      if (tx.type === TransactionType.INCOME) {
+        incomeMinor = addMinor(incomeMinor, amount);
+        daily.income = addMinor(daily.income, amount);
       } else {
-        expenses += amount;
-        daily.expense += amount;
+        expensesMinor = addMinor(expensesMinor, amount);
+        daily.expense = addMinor(daily.expense, amount);
       }
       dailyMap.set(day, daily);
 
       const key = `${tx.type}:${tx.categoryId ?? "none"}`;
       const current = categoryMap.get(key) ?? {
         categoryId: tx.categoryId,
-        name: tx.category?.name ?? (tx.type === "income" ? "Income" : "Other"),
+        name:
+          tx.category?.name ??
+          (tx.type === TransactionType.INCOME ? "Income" : "Other"),
         type: tx.type,
-        total: 0,
+        total: 0n,
       };
-      current.total = toMoney(current.total + amount);
+      current.total = addMinor(current.total, amount);
       categoryMap.set(key, current);
     }
 
+    const netMinor = subMinor(incomeMinor, expensesMinor);
+
     return {
-      balance: toMoney(balance),
-      income: toMoney(income),
-      expenses: toMoney(expenses),
-      savings: toMoney(savings),
-      net: toMoney(income - expenses),
+      balance: fromMinorUnits(balanceMinor),
+      income: fromMinorUnits(incomeMinor),
+      expenses: fromMinorUnits(expensesMinor),
+      savings: fromMinorUnits(savingsMinor),
+      net: fromMinorUnits(netMinor),
       currency: "UAH",
       period: {
         from: periodFrom.toISOString(),
@@ -109,12 +122,17 @@ export class DashboardService {
       accounts: accounts.map((account) => this.accountsService.toDto(account)),
       dailySeries: Array.from(dailyMap.entries()).map(([date, value]) => ({
         date,
-        income: toMoney(value.income),
-        expense: toMoney(value.expense),
+        income: fromMinorUnits(value.income),
+        expense: fromMinorUnits(value.expense),
       })),
-      byCategory: Array.from(categoryMap.values()).sort(
-        (a, b) => b.total - a.total,
-      ),
+      byCategory: Array.from(categoryMap.values())
+        .map((item) => ({
+          categoryId: item.categoryId,
+          name: item.name,
+          type: item.type,
+          total: fromMinorUnits(item.total),
+        }))
+        .sort((a, b) => b.total - a.total),
     };
   }
 }

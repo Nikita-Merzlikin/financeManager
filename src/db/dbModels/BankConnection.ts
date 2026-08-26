@@ -6,6 +6,8 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import { BankProvider } from "src/core/enums/finance.enums";
+import { EncryptedColumn } from "../decorators/encrypted-column.decorator";
 import { User } from "./User";
 
 @Table({
@@ -31,15 +33,16 @@ export class BankConnection extends Model {
   declare user: User;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.ENUM(...Object.values(BankProvider)),
     allowNull: false,
   })
-  declare provider: "monobank" | "privat";
+  declare provider: BankProvider;
 
-  @Column({
-    type: DataType.TEXT,
-    allowNull: false,
-  })
+  /**
+   * Pass a plain object or JSON string when writing; value is encrypted in DB.
+   * Reading returns decrypted plaintext (JSON string).
+   */
+  @EncryptedColumn({ allowNull: false })
   declare credentialsEncrypted: string;
 
   @Column({

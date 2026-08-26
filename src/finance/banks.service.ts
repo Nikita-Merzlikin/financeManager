@@ -7,17 +7,39 @@ import {
   ConnectMonobankDto,
   ConnectPrivatDto,
   SyncBankDto,
+  BankConnectionResponseDto,
 } from "src/core/dto/finance.dto";
+import {
+  AccountSource,
+  AccountType,
+  BankProvider,
+  MONOBANK_DEFAULT_LABEL,
+  PRIVAT_CREDIT_TYPES,
+  PRIVAT_DEFAULT_ACCOUNT_LABEL,
+  PRIVAT_DEFAULT_TX_DESCRIPTION,
+  TransactionType,
+} from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { BankConnection } from "src/db/dbModels/BankConnection";
 import { Transaction } from "src/db/dbModels/Transaction";
-import { MonobankClient } from "./banks/monobank.client";
-import { PrivatClient } from "./banks/privat.client";
 import {
-  decryptCredentials,
-  encryptCredentials,
-  formatMoney,
-  toMoney,
+  buildMonobankExternalId,
+  buildPrivatExternalId,
+  normalizeIban,
+} from "./banks/bank-external-id";
+import { MonobankClient } from "./banks/monobank.client";
+import type {
+  MonoClientInfo,
+  MonoWebhookPayload,
+} from "./banks/monobank.types";
+import {
+  PrivatBalanceRow,
+  PrivatClient,
+} from "./banks/privat.client";
+import {
+  formatMinorUnits,
+  parseCredentials,
+  toMinorUnits,
 } from "./finance.utils";
 
 type MonoCredentials = { token: string };
@@ -36,22 +58,25 @@ export class BanksService {
     private readonly privatClient: PrivatClient,
   ) {}
 
-  async connectMonobank(userId: string, dto: ConnectMonobankDto) {
+  async connectMonobank(
+    userId: string,
+    dto: ConnectMonobankDto,
+  ): Promise<BankConnectionResponseDto> {
     const info = await this.monobankClient.getClientInfo(dto.token);
     const [connection] = await this.bankConnectionModel.findOrCreate({
-      where: { userId, provider: "monobank", isActive: true },
+      where: { userId, provider: BankProvider.MONOBANK, isActive: true },
       defaults: {
         userId,
-        provider: "monobank",
-        credentialsEncrypted: encryptCredentials({ token: dto.token }),
-        label: dto.label ?? info.name ?? "Monobank",
+        provider: BankProvider.MONOBANK,
+        credentialsEncrypted: JSON.stringify({ token: dto.token }),
+        label: dto.label ?? info.name ?? MONOBANK_DEFAULT_LABEL,
         isActive: true,
       },
     });
 
     await connection.update({
-      credentialsEncrypted: encryptCredentials({ token: dto.token }),
-      label: dto.label ?? connection.label ?? info.name ?? "Monobank",
+      credentialsEncrypted: JSON.stringify({ token: dto.token }),
+      label: dto.label ?? connection.label ?? info.name ?? MONOBANK_DEFAULT_LABEL,
       isActive: true,
     });
 
@@ -63,36 +88,36 @@ export class BanksService {
       provider: connection.provider,
       label: connection.label,
       lastSyncedAt: connection.lastSyncedAt,
-      message:
-        "Connected. Call POST /banks/connections/:id/sync to import statements (rate limit ~60s).",
+      message: "Connected",
     };
   }
 
-  async connectPrivat(userId: string, dto: ConnectPrivatDto) {
+  async connectPrivat(
+    userId: string,
+    dto: ConnectPrivatDto,
+  ): Promise<BankConnectionResponseDto> {
     await this.privatClient.getBalance(dto.clientId, dto.token, dto.iban);
 
+    const credentials = JSON.stringify({
+      clientId: dto.clientId,
+      token: dto.token,
+      iban: dto.iban,
+    });
+
     const [connection] = await this.bankConnectionModel.findOrCreate({
-      where: { userId, provider: "privat", isActive: true },
+      where: { userId, provider: BankProvider.PRIVAT, isActive: true },
       defaults: {
         userId,
-        provider: "privat",
-        credentialsEncrypted: encryptCredentials({
-          clientId: dto.clientId,
-          token: dto.token,
-          iban: dto.iban,
-        }),
-        label: dto.label ?? "Privat FOP",
+        provider: BankProvider.PRIVAT,
+        credentialsEncrypted: credentials,
+        label: dto.label ?? PRIVAT_DEFAULT_ACCOUNT_LABEL,
         isActive: true,
       },
     });
 
     await connection.update({
-      credentialsEncrypted: encryptCredentials({
-        clientId: dto.clientId,
-        token: dto.token,
-        iban: dto.iban,
-      }),
-      label: dto.label ?? connection.label ?? "Privat FOP",
+      credentialsEncrypted: credentials,
+      label: dto.label ?? connection.label ?? PRIVAT_DEFAULT_ACCOUNT_LABEL,
       isActive: true,
     });
 
@@ -102,11 +127,11 @@ export class BanksService {
       provider: connection.provider,
       label: connection.label,
       lastSyncedAt: connection.lastSyncedAt,
-      message: "Connected and synced Privat FOP account",
+      message: "Connected and synced",
     };
   }
 
-  async listConnections(userId: string) {
+  async listConnections(userId: string): Promise<BankConnectionResponseDto[]> {
     const items = await this.bankConnectionModel.findAll({
       where: { userId, isActive: true },
       order: [["createdAt", "DESC"]],
@@ -119,11 +144,15 @@ export class BanksService {
     }));
   }
 
-  async sync(userId: string, connectionId: string, dto: SyncBankDto) {
+  async sync(
+    userId: string,
+    connectionId: string,
+    dto: SyncBankDto,
+  ): Promise<BankConnectionResponseDto> {
     const connection = await this.findOwned(userId, connectionId);
     const days = Math.min(Math.max(dto.days ?? 30, 1), 90);
 
-    if (connection.provider === "monobank") {
+    if (connection.provider === BankProvider.MONOBANK) {
       await this.syncMonobank(userId, connection, days);
     } else {
       await this.syncPrivat(userId, connection, days);
@@ -132,6 +161,7 @@ export class BanksService {
     return {
       id: connection.id,
       provider: connection.provider,
+      label: connection.label,
       lastSyncedAt: connection.lastSyncedAt,
       message: "Synced successfully",
     };
@@ -147,21 +177,7 @@ export class BanksService {
     return { message: "Bank connection disconnected" };
   }
 
-  async handleMonobankWebhook(payload: {
-    type?: string;
-    data?: {
-      account?: string;
-      statementItem?: {
-        id: string;
-        time: number;
-        description: string;
-        mcc: number;
-        amount: number;
-        currencyCode: number;
-        comment?: string;
-      };
-    };
-  }) {
+  async handleMonobankWebhook(payload: MonoWebhookPayload) {
     if (payload.type !== "StatementItem" || !payload.data?.statementItem) {
       return { message: "ignored" };
     }
@@ -172,7 +188,7 @@ export class BanksService {
 
     const account = await this.accountModel.findOne({
       where: {
-        source: "monobank",
+        source: AccountSource.MONOBANK,
         externalId: externalAccountId,
         isActive: true,
       },
@@ -182,22 +198,22 @@ export class BanksService {
     await this.upsertBankTransaction({
       userId: account.userId,
       accountId: account.id,
-      source: "monobank",
-      externalId: `monobank:${item.id}`,
-      amount: this.monobankClient.toMajorAmount(item.amount),
-      type: item.amount >= 0 ? "income" : "expense",
+      source: AccountSource.MONOBANK,
+      externalId: buildMonobankExternalId(item.id),
+      amountMinor: this.monobankClient.toMinorAmount(item.amount),
+      type:
+        item.amount >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
       currency: this.monobankClient.mapCurrency(item.currencyCode),
       description: item.comment || item.description,
       occurredAt: new Date(item.time * 1000),
       mcc: item.mcc,
     });
 
-    const balanceMinor = (
-      payload.data.statementItem as { balance?: number }
-    ).balance;
-    if (typeof balanceMinor === "number") {
+    if (typeof item.balance === "number") {
       await account.update({
-        balance: formatMoney(fromAbsBalance(balanceMinor)),
+        balance: formatMinorUnits(
+          this.monobankClient.toMinorAmount(item.balance),
+        ),
       });
     }
 
@@ -207,33 +223,19 @@ export class BanksService {
   private async importMonobankAccounts(
     userId: string,
     connection: BankConnection,
-    info: {
-      accounts?: Array<{
-        id: string;
-        balance: number;
-        type: string;
-        currencyCode: number;
-        maskedPan?: string[];
-        iban?: string;
-      }>;
-      jars?: Array<{
-        id: string;
-        title: string;
-        balance: number;
-        currencyCode: number;
-      }>;
-    },
+    info: MonoClientInfo,
   ) {
     for (const monoAccount of info.accounts ?? []) {
       await this.upsertAccount({
         userId,
         bankConnectionId: connection.id,
-        source: "monobank",
+        source: AccountSource.MONOBANK,
         externalId: monoAccount.id,
         name: `${monoAccount.type} ${monoAccount.maskedPan?.[0] ?? ""}`.trim(),
-        type: monoAccount.type === "fop" ? "fop" : "card",
+        type:
+          monoAccount.type === "fop" ? AccountType.FOP : AccountType.CARD,
         currency: this.monobankClient.mapCurrency(monoAccount.currencyCode),
-        balance: this.monobankClient.toMajorAmount(monoAccount.balance),
+        balanceMinor: this.monobankClient.toMinorAmount(monoAccount.balance),
         iban: monoAccount.iban ?? null,
       });
     }
@@ -242,12 +244,12 @@ export class BanksService {
       await this.upsertAccount({
         userId,
         bankConnectionId: connection.id,
-        source: "monobank",
+        source: AccountSource.MONOBANK,
         externalId: jar.id,
         name: jar.title,
-        type: "jar",
+        type: AccountType.JAR,
         currency: this.monobankClient.mapCurrency(jar.currencyCode),
-        balance: this.monobankClient.toMajorAmount(jar.balance),
+        balanceMinor: this.monobankClient.toMinorAmount(jar.balance),
         iban: null,
       });
     }
@@ -258,7 +260,7 @@ export class BanksService {
     connection: BankConnection,
     days: number,
   ) {
-    const credentials = decryptCredentials<MonoCredentials>(
+    const credentials = parseCredentials<MonoCredentials>(
       connection.credentialsEncrypted,
     );
     const info = await this.monobankClient.getClientInfo(credentials.token);
@@ -275,7 +277,7 @@ export class BanksService {
       const account = await this.accountModel.findOne({
         where: {
           userId,
-          source: "monobank",
+          source: AccountSource.MONOBANK,
           externalId: monoAccount.id,
         },
       });
@@ -292,10 +294,13 @@ export class BanksService {
         await this.upsertBankTransaction({
           userId,
           accountId: account.id,
-          source: "monobank",
-          externalId: `monobank:${item.id}`,
-          amount: this.monobankClient.toMajorAmount(item.amount),
-          type: item.amount >= 0 ? "income" : "expense",
+          source: AccountSource.MONOBANK,
+          externalId: buildMonobankExternalId(item.id),
+          amountMinor: this.monobankClient.toMinorAmount(item.amount),
+          type:
+            item.amount >= 0
+              ? TransactionType.INCOME
+              : TransactionType.EXPENSE,
           currency: this.monobankClient.mapCurrency(item.currencyCode),
           description: item.comment || item.description,
           occurredAt: new Date(item.time * 1000),
@@ -312,7 +317,7 @@ export class BanksService {
     connection: BankConnection,
     days: number,
   ) {
-    const credentials = decryptCredentials<PrivatCredentials>(
+    const credentials = parseCredentials<PrivatCredentials>(
       connection.credentialsEncrypted,
     );
     const to = new Date();
@@ -328,8 +333,8 @@ export class BanksService {
       startDate,
       endDate,
     );
-    const balanceRow = balances[0];
-    const balanceValue = Number(
+    const balanceRow = pickPrivatBalance(balances, credentials.iban);
+    const balanceMajor = Number(
       balanceRow?.BALANCEOUT ?? balanceRow?.balance ?? 0,
     );
     const currency =
@@ -338,12 +343,12 @@ export class BanksService {
     const account = await this.upsertAccount({
       userId,
       bankConnectionId: connection.id,
-      source: "privat",
+      source: AccountSource.PRIVAT,
       externalId: credentials.iban,
-      name: connection.label || "Privat FOP",
-      type: "fop",
+      name: connection.label || PRIVAT_DEFAULT_ACCOUNT_LABEL,
+      type: AccountType.FOP,
       currency,
-      balance: toMoney(balanceValue),
+      balanceMinor: toMinorUnits(balanceMajor),
       iban: credentials.iban,
     });
 
@@ -356,27 +361,24 @@ export class BanksService {
     );
 
     for (const row of rows) {
-      const amount = Math.abs(Number(row.SUM ?? row.AMOUNT ?? 0));
-      if (!amount) continue;
+      const amountMajor = Math.abs(Number(row.SUM ?? row.AMOUNT ?? 0));
+      if (!amountMajor) continue;
+      const amountMinor = toMinorUnits(amountMajor);
       const tranType = (row.TRANTYPE || "").toUpperCase();
-      const type: "income" | "expense" =
-        tranType === "C" || tranType === "CR" || tranType === "CREDIT"
-          ? "income"
-          : "expense";
-      const externalId =
-        row.ID != null
-          ? `privat:${row.ID}`
-          : `privat:${credentials.iban}:${row.DAT_OD}:${amount}:${row.OSND || row.PURPOSE || ""}`;
+      const type = PRIVAT_CREDIT_TYPES.has(tranType)
+        ? TransactionType.INCOME
+        : TransactionType.EXPENSE;
 
       await this.upsertBankTransaction({
         userId,
         accountId: account.id,
-        source: "privat",
-        externalId,
-        amount: toMoney(amount),
+        source: AccountSource.PRIVAT,
+        externalId: buildPrivatExternalId(row, credentials.iban, amountMinor),
+        amountMinor,
         type,
         currency: row.CCY || row.currency || currency,
-        description: row.OSND || row.PURPOSE || "Privat transaction",
+        description:
+          row.OSND || row.PURPOSE || PRIVAT_DEFAULT_TX_DESCRIPTION,
         occurredAt: parsePrivatDate(row.DAT_OD) ?? new Date(),
         mcc: null,
       });
@@ -388,14 +390,15 @@ export class BanksService {
   private async upsertAccount(input: {
     userId: string;
     bankConnectionId: string;
-    source: "monobank" | "privat";
+    source: AccountSource.MONOBANK | AccountSource.PRIVAT;
     externalId: string;
     name: string;
-    type: Account["type"];
+    type: AccountType;
     currency: string;
-    balance: number;
+    balanceMinor: bigint;
     iban: string | null;
   }) {
+    const balance = formatMinorUnits(input.balanceMinor);
     const [account] = await this.accountModel.findOrCreate({
       where: {
         userId: input.userId,
@@ -410,7 +413,7 @@ export class BanksService {
         name: input.name,
         type: input.type,
         currency: input.currency,
-        balance: formatMoney(input.balance),
+        balance,
         iban: input.iban,
         isActive: true,
       },
@@ -421,7 +424,7 @@ export class BanksService {
       name: input.name,
       type: input.type,
       currency: input.currency,
-      balance: formatMoney(input.balance),
+      balance,
       iban: input.iban,
       isActive: true,
     });
@@ -432,23 +435,23 @@ export class BanksService {
   private async upsertBankTransaction(input: {
     userId: string;
     accountId: string;
-    source: "monobank" | "privat";
+    source: AccountSource.MONOBANK | AccountSource.PRIVAT;
     externalId: string;
-    amount: number;
-    type: "income" | "expense";
+    amountMinor: bigint;
+    type: TransactionType;
     currency: string;
     description: string;
     occurredAt: Date;
     mcc: number | null;
-    accountBalance?: number;
   }) {
+    const amount = formatMinorUnits(input.amountMinor);
     const existing = await this.transactionModel.findOne({
       where: { externalId: input.externalId },
     });
     if (existing) {
       await existing.update({
         description: input.description,
-        amount: formatMoney(input.amount),
+        amount,
         type: input.type,
         occurredAt: input.occurredAt,
         mcc: input.mcc,
@@ -461,7 +464,7 @@ export class BanksService {
       accountId: input.accountId,
       categoryId: null,
       type: input.type,
-      amount: formatMoney(input.amount),
+      amount,
       currency: input.currency,
       description: input.description,
       occurredAt: input.occurredAt,
@@ -484,6 +487,18 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function pickPrivatBalance(
+  rows: PrivatBalanceRow[],
+  iban: string,
+): PrivatBalanceRow | undefined {
+  if (!rows.length) return undefined;
+  const target = normalizeIban(iban);
+  const matched = rows.find(
+    (row) => row.ACC && normalizeIban(String(row.ACC)) === target,
+  );
+  return matched ?? rows[0];
+}
+
 function parsePrivatDate(value?: string): Date | null {
   if (!value) return null;
   const parts = value.includes(".")
@@ -495,8 +510,4 @@ function parsePrivatDate(value?: string): Date | null {
   const [dd, mm, yyyy] = parts;
   const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function fromAbsBalance(minor: number): number {
-  return Math.round(Math.abs(minor)) / 100;
 }

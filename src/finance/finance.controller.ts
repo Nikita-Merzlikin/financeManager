@@ -27,6 +27,7 @@ import {
   CreateCategoryDto,
   CreateTransactionDto,
   DashboardDto,
+  BankConnectionResponseDto,
   SyncBankDto,
   TransactionDto,
   UpdateAccountDto,
@@ -161,45 +162,58 @@ export class FinanceController {
   }
 
   @Get("banks/connections")
-  listBankConnections(@CurrentUser() user: JwtPayload) {
+  @ApiOkResponse({ type: BankConnectionResponseDto, isArray: true })
+  listBankConnections(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<BankConnectionResponseDto[]> {
     return this.banksService.listConnections(user.sub);
   }
 
   @Post("banks/monobank/connect")
   @ApiBody({ type: ConnectMonobankDto })
+  @ApiOkResponse({ type: BankConnectionResponseDto })
   @ApiOperation({
     summary: "Connect Monobank",
     description:
-      "Save personal X-Token from https://api.monobank.ua and sync accounts/transactions.",
+      "Saves the personal X-Token from https://api.monobank.ua and imports accounts/jars. " +
+      "Call the bank connection sync endpoint afterward to import statements. " +
+      "Monobank statement requests are rate-limited (~1 request per 60 seconds).",
   })
   connectMonobank(
     @CurrentUser() user: JwtPayload,
     @Body() dto: ConnectMonobankDto,
-  ) {
+  ): Promise<BankConnectionResponseDto> {
     return this.banksService.connectMonobank(user.sub, dto);
   }
 
   @Post("banks/privat/connect")
   @ApiBody({ type: ConnectPrivatDto })
+  @ApiOkResponse({ type: BankConnectionResponseDto })
   @ApiOperation({
     summary: "Connect PrivatBank FOP (AutoClient)",
     description:
-      "Connect Privat24 Business AutoClient credentials and sync FOP IBAN.",
+      "Connects Privat24 Business AutoClient credentials, imports the FOP account, and syncs recent statements.",
   })
   connectPrivat(
     @CurrentUser() user: JwtPayload,
     @Body() dto: ConnectPrivatDto,
-  ) {
+  ): Promise<BankConnectionResponseDto> {
     return this.banksService.connectPrivat(user.sub, dto);
   }
 
   @Post("banks/connections/:id/sync")
   @ApiBody({ type: SyncBankDto })
+  @ApiOkResponse({ type: BankConnectionResponseDto })
+  @ApiOperation({
+    summary: "Sync bank connection",
+    description:
+      "Imports statements for the given connection. For Monobank, expect ~60s delay between account statement requests due to API rate limits.",
+  })
   syncBank(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
     @Body() dto: SyncBankDto,
-  ) {
+  ): Promise<BankConnectionResponseDto> {
     return this.banksService.sync(user.sub, id, dto);
   }
 
