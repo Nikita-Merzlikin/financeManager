@@ -6,10 +6,13 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import { TransactionDto } from "src/core/dto/finance.dto";
 import {
   AccountSource,
+  DEFAULT_CURRENCY,
   TransactionType,
 } from "src/core/enums/finance.enums";
+import { fromMinorUnits } from "src/finance/finance.utils";
 import { User } from "./User";
 import { Account } from "./Account";
 import { Category } from "./Category";
@@ -72,7 +75,7 @@ export class Transaction extends Model {
   @Column({
     type: DataType.STRING,
     allowNull: false,
-    defaultValue: "UAH",
+    defaultValue: DEFAULT_CURRENCY,
   })
   declare currency: string;
 
@@ -110,4 +113,18 @@ export class Transaction extends Model {
 
   declare createdAt: Date;
   declare updatedAt: Date;
+
+  toDto(): TransactionDto {
+    return {
+      id: this.id,
+      accountId: this.accountId,
+      categoryId: this.categoryId,
+      type: this.type,
+      amount: fromMinorUnits(this.amount),
+      currency: this.currency,
+      description: this.description,
+      occurredAt: this.occurredAt,
+      source: this.source,
+    };
+  }
 }

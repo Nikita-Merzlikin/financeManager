@@ -1,53 +1,18 @@
 import { Controller, Get, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
-  ApiHeader,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { UserDto } from "src/core/dto/user.dto";
 import { UserService } from "./user.service";
 
 @ApiTags("user")
-@ApiHeader({
-  name: "x-unit-system",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["metric", "imperial"],
-    default: "metric",
-  },
-})
-@ApiHeader({
-  name: "x-lang",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["en", "ru", "uk"],
-    default: "uk",
-  },
-})
-@ApiHeader({
-  name: "client-type",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["admin", "client"],
-    default: "client",
-  },
-})
-@ApiHeader({
-  name: "Currency",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["UAH", "USD", "EUR"],
-    default: "UAH",
-  },
-})
+@ApiCommonHeaders()
 @Controller("user")
 export class UserController {
   constructor(private readonly userService: UserService) {}

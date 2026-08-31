@@ -9,11 +9,14 @@ import {
   MaxLength,
   Min,
 } from "class-validator";
-import { IsIbanField } from "src/core/decorators/is-iban.decorator";
+import { IsIban } from "src/core/decorators/is-iban.decorator";
 import {
   AccountSource,
   AccountType,
   BankProvider,
+  CurrencyEnum,
+  DEFAULT_ACCOUNT_TYPE,
+  DEFAULT_CURRENCY,
   TransactionType,
 } from "src/core/enums/finance.enums";
 
@@ -23,12 +26,12 @@ export class CreateAccountDto {
   @MaxLength(100)
   name!: string;
 
-  @ApiPropertyOptional({ enum: AccountType, default: AccountType.CARD })
+  @ApiPropertyOptional({ enum: AccountType, default: DEFAULT_ACCOUNT_TYPE })
   @IsOptional()
   @IsEnum(AccountType)
   type?: AccountType;
 
-  @ApiPropertyOptional({ example: "UAH", default: "UAH" })
+  @ApiPropertyOptional({ example: DEFAULT_CURRENCY, default: DEFAULT_CURRENCY, enum: CurrencyEnum })
   @IsOptional()
   @IsString()
   @MaxLength(3)
@@ -39,7 +42,9 @@ export class CreateAccountDto {
   @IsNumber()
   balance?: number;
 
-  @IsIbanField({ required: false, example: "UA123..." })
+  @ApiPropertyOptional({ example: "UA903052990004149123456789012" })
+  @IsOptional()
+  @IsIban()
   iban?: string;
 }
 
@@ -65,7 +70,9 @@ export class UpdateAccountDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @IsIbanField({ required: false })
+  @ApiPropertyOptional({ example: "UA903052990004149123456789012" })
+  @IsOptional()
+  @IsIban()
   iban?: string;
 }
 
@@ -112,7 +119,7 @@ export class CreateTransactionDto {
   @Min(0.01)
   amount!: number;
 
-  @ApiPropertyOptional({ example: "UAH" })
+  @ApiPropertyOptional({ example: DEFAULT_CURRENCY, enum: CurrencyEnum })
   @IsOptional()
   @IsString()
   currency?: string;
@@ -244,10 +251,11 @@ export class ConnectPrivatDto {
   @IsString()
   token!: string;
 
-  @IsIbanField({
+  @ApiProperty({
     description: "FOP account IBAN to sync",
     example: "UA123456789012345678901234567",
   })
+  @IsIban()
   iban!: string;
 
   @ApiPropertyOptional({ example: "Privat FOP" })
@@ -300,7 +308,7 @@ export class DashboardDto {
   @ApiProperty({ example: 13500 })
   net!: number;
 
-  @ApiProperty({ example: "UAH" })
+  @ApiProperty({ example: DEFAULT_CURRENCY, enum: CurrencyEnum })
   currency!: string;
 
   @ApiProperty()

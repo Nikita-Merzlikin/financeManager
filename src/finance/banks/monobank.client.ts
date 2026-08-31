@@ -4,6 +4,11 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
+import {
+  CurrencyEnum,
+  IsoCurrencyCodeEnum,
+} from "src/core/enums/finance.enums";
 import { MONO_ENDPOINTS } from "./monobank.constants";
 import type {
   MonoClientInfo,
@@ -46,10 +51,16 @@ export class MonobankClient {
   }
 
   mapCurrency(code: number): string {
-    if (code === 980) return "UAH";
-    if (code === 840) return "USD";
-    if (code === 978) return "EUR";
-    return String(code);
+    switch (code) {
+      case IsoCurrencyCodeEnum.UAH:
+        return CurrencyEnum.UAH;
+      case IsoCurrencyCodeEnum.USD:
+        return CurrencyEnum.USD;
+      case IsoCurrencyCodeEnum.EUR:
+        return CurrencyEnum.EUR;
+      default:
+        return String(code);
+    }
   }
 
   toMinorAmount(minor: number): bigint {
@@ -73,7 +84,7 @@ export class MonobankClient {
 
       if (response.status === 429) {
         throw new BadRequestException(
-          "Monobank rate limit: retry after 60 seconds",
+          FINANCE_ERROR_MESSAGES.MONOBANK_RATE_LIMIT,
         );
       }
 
@@ -98,7 +109,9 @@ export class MonobankClient {
         throw error;
       }
       this.logger.error(`Monobank network error on ${url}`);
-      throw new ServiceUnavailableException("Monobank is unavailable");
+      throw new ServiceUnavailableException(
+        FINANCE_ERROR_MESSAGES.MONOBANK_API_UNAVAILABLE,
+      );
     }
   }
 }

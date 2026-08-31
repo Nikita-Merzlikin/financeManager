@@ -1,0 +1,16 @@
+export const FINANCE_ERROR_MESSAGES = {
+  ACCOUNT_NOT_FOUND: "Account not found",
+  BANK_ACCOUNTS_ONLY_DISCONNECT: "Bank accounts can only be disconnected",
+  TRANSACTION_NOT_FOUND: "Transaction not found",
+  ONLY_MANUAL_TX_EDIT: "Only manual transactions can be edited",
+  ONLY_MANUAL_TX_DELETE: "Only manual transactions can be deleted",
+  INVALID_CATEGORY: "Invalid category",
+  BANK_CONNECTION_NOT_FOUND: "Bank connection not found",
+  BANK_CONNECTION_DISCONNECTED: "Bank connection disconnected",
+  ACCOUNT_DELETED: "Account deleted",
+  TRANSACTION_DELETED: "Transaction deleted",
+  PRIVAT_API_UNAVAILABLE: "PrivatBank API is unavailable",
+  MONOBANK_API_UNAVAILABLE: "Monobank is unavailable",
+  MONOBANK_RATE_LIMIT: "Monobank rate limit: retry after 60 seconds",
+  MONOBANK_ACCOUNT_NOT_FOUND: "account not found",
+} as const;

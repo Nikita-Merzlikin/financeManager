@@ -6,6 +6,7 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import { CategoryDto } from "src/core/dto/finance.dto";
 import { TransactionType } from "src/core/enums/finance.enums";
 import { User } from "./User";
 
@@ -51,4 +52,13 @@ export class Category extends Model {
 
   declare createdAt: Date;
   declare updatedAt: Date;
+
+  toDto(): CategoryDto {
+    return {
+      id: this.id,
+      name: this.name,
+      type: this.type,
+      icon: this.icon,
+    };
+  }
 }

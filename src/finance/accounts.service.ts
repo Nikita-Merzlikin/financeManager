@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
+import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
 import {
   AccountDto,
   CreateAccountDto,
@@ -11,12 +12,13 @@ import {
 } from "src/core/dto/finance.dto";
 import {
   AccountSource,
-  AccountType,
+  DEFAULT_ACCOUNT_TYPE,
+  DEFAULT_CURRENCY,
 } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
+import { Transaction } from "src/db/dbModels/Transaction";
 import {
   formatMinorUnits,
-  fromMinorUnits,
   toMinorUnits,
 } from "./finance.utils";
 
@@ -25,20 +27,12 @@ export class AccountsService {
   constructor(
     @InjectModel(Account)
     private readonly accountModel: typeof Account,
+    @InjectModel(Transaction)
+    private readonly transactionModel: typeof Transaction,
   ) {}
 
   toDto(account: Account): AccountDto {
-    return {
-      id: account.id,
-      name: account.name,
-      source: account.source,
-      type: account.type,
-      currency: account.currency,
-      balance: fromMinorUnits(account.balance),
-      iban: account.iban,
-      isActive: account.isActive,
-      bankConnectionId: account.bankConnectionId,
-    };
+    return account.toDto();
   }
 
   async list(userId: string): Promise<AccountDto[]> {
@@ -46,21 +40,21 @@ export class AccountsService {
       where: { userId },
       order: [["createdAt", "DESC"]],
     });
-    return accounts.map((item) => this.toDto(item));
+    return accounts.map((item) => item.toDto());
   }
 
   async create(userId: string, dto: CreateAccountDto): Promise<AccountDto> {
     const account = await this.accountModel.create({
       userId,
       name: dto.name,
-      type: dto.type ?? AccountType.CARD,
-      currency: dto.currency ?? "UAH",
+      type: dto.type ?? DEFAULT_ACCOUNT_TYPE,
+      currency: dto.currency ?? DEFAULT_CURRENCY,
       balance: formatMinorUnits(toMinorUnits(dto.balance ?? 0)),
       source: AccountSource.MANUAL,
       iban: dto.iban ?? null,
       isActive: true,
     });
-    return this.toDto(account);
+    return account.toDto();
   }
 
   async update(
@@ -70,30 +64,45 @@ export class AccountsService {
   ): Promise<AccountDto> {
     const account = await this.findOwned(userId, accountId);
     await account.update({
-      ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.type !== undefined && { type: dto.type }),
+      ...dto,
       ...(dto.balance !== undefined && {
         balance: formatMinorUnits(toMinorUnits(dto.balance)),
       }),
-      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      ...(dto.iban !== undefined && { iban: dto.iban }),
     });
-    return this.toDto(account);
+    return account.toDto();
   }
 
   async remove(userId: string, accountId: string): Promise<{ message: string }> {
     const account = await this.findOwned(userId, accountId);
     if (account.source !== AccountSource.MANUAL) {
-      throw new ForbiddenException("Bank accounts can only be disconnected");
+      throw new ForbiddenException(
+        FINANCE_ERROR_MESSAGES.BANK_ACCOUNTS_ONLY_DISCONNECT,
+      );
     }
-    await account.destroy();
-    return { message: "Account deleted" };
+
+    const sequelize = this.accountModel.sequelize;
+    if (sequelize) {
+      await sequelize.transaction(async (transaction) => {
+        await this.transactionModel.destroy({
+          where: { accountId: account.id, userId },
+          transaction,
+        });
+        await account.destroy({ transaction });
+      });
+    } else {
+      await this.transactionModel.destroy({
+        where: { accountId: account.id, userId },
+      });
+      await account.destroy();
+    }
+
+    return { message: FINANCE_ERROR_MESSAGES.ACCOUNT_DELETED };
   }
 
   async findOwned(userId: string, accountId: string): Promise<Account> {
     const account = await this.accountModel.findByPk(accountId);
     if (!account || account.userId !== userId) {
-      throw new NotFoundException("Account not found");
+      throw new NotFoundException(FINANCE_ERROR_MESSAGES.ACCOUNT_NOT_FOUND);
     }
     return account;
   }

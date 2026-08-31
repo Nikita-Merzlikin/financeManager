@@ -7,10 +7,14 @@ import {
   BelongsTo,
   HasMany,
 } from "sequelize-typescript";
+import { AccountDto } from "src/core/dto/finance.dto";
 import {
   AccountSource,
   AccountType,
+  DEFAULT_ACCOUNT_TYPE,
+  DEFAULT_CURRENCY,
 } from "src/core/enums/finance.enums";
+import { fromMinorUnits } from "src/finance/finance.utils";
 import { User } from "./User";
 import { BankConnection } from "./BankConnection";
 import { Transaction } from "./Transaction";
@@ -63,14 +67,14 @@ export class Account extends Model {
   @Column({
     type: DataType.ENUM(...Object.values(AccountType)),
     allowNull: false,
-    defaultValue: AccountType.CARD,
+    defaultValue: DEFAULT_ACCOUNT_TYPE,
   })
   declare type: AccountType;
 
   @Column({
     type: DataType.STRING,
     allowNull: false,
-    defaultValue: "UAH",
+    defaultValue: DEFAULT_CURRENCY,
   })
   declare currency: string;
 
@@ -101,9 +105,23 @@ export class Account extends Model {
   })
   declare isActive: boolean;
 
-  @HasMany(() => Transaction)
+  @HasMany(() => Transaction, { onDelete: "CASCADE", hooks: true })
   declare transactions: Transaction[];
 
   declare createdAt: Date;
   declare updatedAt: Date;
+
+  toDto(): AccountDto {
+    return {
+      id: this.id,
+      name: this.name,
+      source: this.source,
+      type: this.type,
+      currency: this.currency,
+      balance: fromMinorUnits(this.balance),
+      iban: this.iban,
+      isActive: this.isActive,
+      bankConnectionId: this.bankConnectionId,
+    };
+  }
 }

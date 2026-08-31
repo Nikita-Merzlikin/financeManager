@@ -13,12 +13,7 @@ export class CategoriesService {
   ) {}
 
   toDto(category: Category): CategoryDto {
-    return {
-      id: category.id,
-      name: category.name,
-      type: category.type,
-      icon: category.icon,
-    };
+    return category.toDto();
   }
 
   /** Ensures system defaults exist (prefer running db:seed). */
@@ -49,7 +44,7 @@ export class CategoriesService {
         ["name", "ASC"],
       ],
     });
-    return categories.map((item) => this.toDto(item));
+    return categories.map((item) => item.toDto());
   }
 
   async create(userId: string, dto: CreateCategoryDto): Promise<CategoryDto> {
@@ -59,6 +54,6 @@ export class CategoriesService {
       type: dto.type,
       icon: dto.icon ?? null,
     });
-    return this.toDto(category);
+    return category.toDto();
   }
 }

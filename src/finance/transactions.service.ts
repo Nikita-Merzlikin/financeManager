@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { Op } from "sequelize";
+import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
 import {
   CreateTransactionDto,
   TransactionDto,
@@ -21,7 +22,6 @@ import { AccountsService } from "./accounts.service";
 import {
   addMinor,
   formatMinorUnits,
-  fromMinorUnits,
   parseMinorUnits,
   subMinor,
   toMinorUnits,
@@ -38,17 +38,7 @@ export class TransactionsService {
   ) {}
 
   toDto(tx: Transaction): TransactionDto {
-    return {
-      id: tx.id,
-      accountId: tx.accountId,
-      categoryId: tx.categoryId,
-      type: tx.type,
-      amount: fromMinorUnits(tx.amount),
-      currency: tx.currency,
-      description: tx.description,
-      occurredAt: tx.occurredAt,
-      source: tx.source,
-    };
+    return tx.toDto();
   }
 
   async list(
@@ -68,7 +58,7 @@ export class TransactionsService {
       where,
       order: [["occurredAt", "DESC"]],
     });
-    return items.map((item) => this.toDto(item));
+    return items.map((item) => item.toDto());
   }
 
   async create(
@@ -94,7 +84,7 @@ export class TransactionsService {
     });
 
     await this.applyBalanceDelta(account, dto.type, amountMinor);
-    return this.toDto(tx);
+    return tx.toDto();
   }
 
   async update(
@@ -104,7 +94,9 @@ export class TransactionsService {
   ): Promise<TransactionDto> {
     const tx = await this.findOwned(userId, transactionId);
     if (tx.source !== AccountSource.MANUAL) {
-      throw new BadRequestException("Only manual transactions can be edited");
+      throw new BadRequestException(
+        FINANCE_ERROR_MESSAGES.ONLY_MANUAL_TX_EDIT,
+      );
     }
 
     const account = await this.accountsService.findOwned(userId, tx.accountId);
@@ -126,19 +118,17 @@ export class TransactionsService {
     }
 
     await tx.update({
-      ...(dto.type !== undefined && { type: dto.type }),
+      ...dto,
       ...(dto.amount !== undefined && {
         amount: formatMinorUnits(toMinorUnits(dto.amount)),
       }),
-      ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
-      ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.occurredAt !== undefined && {
         occurredAt: new Date(dto.occurredAt),
       }),
     });
 
     await this.applyBalanceDelta(account, nextType, nextAmount);
-    return this.toDto(tx);
+    return tx.toDto();
   }
 
   async remove(
@@ -147,7 +137,9 @@ export class TransactionsService {
   ): Promise<{ message: string }> {
     const tx = await this.findOwned(userId, transactionId);
     if (tx.source !== AccountSource.MANUAL) {
-      throw new BadRequestException("Only manual transactions can be deleted");
+      throw new BadRequestException(
+        FINANCE_ERROR_MESSAGES.ONLY_MANUAL_TX_DELETE,
+      );
     }
     const account = await this.accountsService.findOwned(userId, tx.accountId);
     await this.applyBalanceDelta(
@@ -158,7 +150,7 @@ export class TransactionsService {
       parseMinorUnits(tx.amount),
     );
     await tx.destroy();
-    return { message: "Transaction deleted" };
+    return { message: FINANCE_ERROR_MESSAGES.TRANSACTION_DELETED };
   }
 
   private async findOwned(
@@ -167,7 +159,7 @@ export class TransactionsService {
   ): Promise<Transaction> {
     const tx = await this.transactionModel.findByPk(transactionId);
     if (!tx || tx.userId !== userId) {
-      throw new NotFoundException("Transaction not found");
+      throw new NotFoundException(FINANCE_ERROR_MESSAGES.TRANSACTION_NOT_FOUND);
     }
     return tx;
   }
@@ -183,7 +175,7 @@ export class TransactionsService {
       (category.userId && category.userId !== userId) ||
       category.type !== type
     ) {
-      throw new BadRequestException("Invalid category");
+      throw new BadRequestException(FINANCE_ERROR_MESSAGES.INVALID_CATEGORY);
     }
   }
 

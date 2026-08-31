@@ -4,6 +4,7 @@ import { Op } from "sequelize";
 import { DashboardDto } from "src/core/dto/finance.dto";
 import {
   AccountType,
+  DEFAULT_CURRENCY,
   TransactionType,
 } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
@@ -114,7 +115,7 @@ export class DashboardService {
       expenses: fromMinorUnits(expensesMinor),
       savings: fromMinorUnits(savingsMinor),
       net: fromMinorUnits(netMinor),
-      currency: "UAH",
+      currency: DEFAULT_CURRENCY,
       period: {
         from: periodFrom.toISOString(),
         to: periodTo.toISOString(),

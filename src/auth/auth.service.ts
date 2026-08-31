@@ -7,6 +7,7 @@ import { InjectModel } from "@nestjs/sequelize";
 import * as bcrypt from "bcrypt";
 import { createHash, randomBytes } from "crypto";
 import { Op } from "sequelize";
+import { AUTH_ERROR_MESSAGES } from "src/core/constants/auth-errors.constants";
 import { AuthTokensDto } from "src/core/dto/auth-tokens.dto";
 import { CreateUserDto } from "src/core/dto/user.dto";
 import { LoginDto } from "src/core/dto/login.dto";
@@ -16,12 +17,16 @@ import { Session } from "src/db/dbModels/Session";
 import { User } from "src/db/dbModels/User";
 import { UserService } from "src/user/user.service";
 
+const DEFAULT_JWT_ACCESS_EXPIRES_IN = "15m";
+const DEFAULT_JWT_REFRESH_EXPIRES_MS = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_TOKEN_BYTES_LENGTH = 48;
+
 @Injectable()
 export class AuthService {
   private readonly accessExpiresIn =
-    process.env.JWT_ACCESS_EXPIRES_IN || "15m";
+    process.env.JWT_ACCESS_EXPIRES_IN || DEFAULT_JWT_ACCESS_EXPIRES_IN;
   private readonly refreshExpiresMs = Number(
-    process.env.JWT_REFRESH_EXPIRES_MS || 7 * 24 * 60 * 60 * 1000,
+    process.env.JWT_REFRESH_EXPIRES_MS || DEFAULT_JWT_REFRESH_EXPIRES_MS,
   );
 
   constructor(
@@ -41,7 +46,7 @@ export class AuthService {
     const tokens = await this.createSessionTokens(user, meta);
 
     return {
-      user: this.userService.toUserDto(user),
+      user: user.toDto(),
       ...tokens,
     };
   }
@@ -49,12 +54,12 @@ export class AuthService {
   async login(dto: LoginDto, meta: SessionMeta): Promise<AuthTokensDto> {
     const user = await this.userModel.findOne({ where: { email: dto.email } });
     if (!user) {
-      throw new UnauthorizedException("Invalid email or password");
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     const passwordValid = await bcrypt.compare(dto.password, user.password);
     if (!passwordValid) {
-      throw new UnauthorizedException("Invalid email or password");
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     return this.createSessionTokens(user, meta);
@@ -73,13 +78,15 @@ export class AuthService {
     });
 
     if (!session) {
-      throw new UnauthorizedException("Invalid or expired refresh token");
+      throw new UnauthorizedException(
+        AUTH_ERROR_MESSAGES.INVALID_OR_EXPIRED_REFRESH_TOKEN,
+      );
     }
 
     const user = await this.userModel.findByPk(session.userId);
     if (!user) {
       await session.destroy();
-      throw new UnauthorizedException("User not found");
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     await session.destroy();
@@ -93,10 +100,10 @@ export class AuthService {
     });
 
     if (!deleted) {
-      throw new UnauthorizedException("Session not found");
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.SESSION_NOT_FOUND);
     }
 
-    return { message: "Logged out successfully" };
+    return { message: AUTH_ERROR_MESSAGES.LOGGED_OUT };
   }
 
   private async createSessionTokens(
@@ -111,7 +118,7 @@ export class AuthService {
       },
     );
 
-    const refreshToken = randomBytes(48).toString("hex");
+    const refreshToken = randomBytes(REFRESH_TOKEN_BYTES_LENGTH).toString("hex");
     const expiresAt = new Date(Date.now() + this.refreshExpiresMs);
 
     await this.sessionModel.create({

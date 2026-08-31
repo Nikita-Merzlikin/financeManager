@@ -6,6 +6,7 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import { ProfileDto } from "src/core/dto/profile.dto";
 import { User } from "./User";
 
 @Table({
@@ -63,4 +64,15 @@ export class UserProfile extends Model {
 
   declare createdAt: Date;
   declare updatedAt: Date;
+
+  toDto(): ProfileDto {
+    return {
+      id: this.id,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      avatar: this.avatar,
+      description: this.description,
+      dateOfBirth: this.dateOfBirth,
+    };
+  }
 }

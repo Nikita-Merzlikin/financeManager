@@ -6,6 +6,7 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import { BankConnectionResponseDto } from "src/core/dto/finance.dto";
 import { BankProvider } from "src/core/enums/finance.enums";
 import { EncryptedColumn } from "../decorators/encrypted-column.decorator";
 import { User } from "./User";
@@ -66,4 +67,14 @@ export class BankConnection extends Model {
 
   declare createdAt: Date;
   declare updatedAt: Date;
+
+  toDto(message?: string): BankConnectionResponseDto {
+    return {
+      id: this.id,
+      provider: this.provider,
+      label: this.label,
+      lastSyncedAt: this.lastSyncedAt,
+      ...(message && { message }),
+    };
+  }
 }

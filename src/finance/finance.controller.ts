@@ -35,6 +35,7 @@ import {
 } from "src/core/dto/finance.dto";
 import { MessageResponseDto } from "src/core/dto/message-response.dto";
 import type { JwtPayload } from "src/core/types/jwt-payload.type";
+import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { AccountsService } from "./accounts.service";
 import { BanksService } from "./banks.service";
 import { CategoriesService } from "./categories.service";
@@ -42,6 +43,7 @@ import { DashboardService } from "./dashboard.service";
 import { TransactionsService } from "./transactions.service";
 
 @ApiTags("finance")
+@ApiCommonHeaders()
 @ApiBearerAuth("access-token")
 @UseGuards(JwtAuthGuard)
 @Controller()

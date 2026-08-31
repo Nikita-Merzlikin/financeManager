@@ -3,16 +3,19 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
+import dayjs from "dayjs";
 import {
   ConnectMonobankDto,
   ConnectPrivatDto,
   SyncBankDto,
   BankConnectionResponseDto,
 } from "src/core/dto/finance.dto";
+import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
 import {
   AccountSource,
   AccountType,
   BankProvider,
+  DEFAULT_CURRENCY,
   MONOBANK_DEFAULT_LABEL,
   PRIVAT_CREDIT_TYPES,
   PRIVAT_DEFAULT_ACCOUNT_LABEL,
@@ -22,6 +25,10 @@ import {
 import { Account } from "src/db/dbModels/Account";
 import { BankConnection } from "src/db/dbModels/BankConnection";
 import { Transaction } from "src/db/dbModels/Transaction";
+import {
+  MonoCredentials,
+  PrivatCredentials,
+} from "./banks/bank-credentials.types";
 import {
   buildMonobankExternalId,
   buildPrivatExternalId,
@@ -41,9 +48,6 @@ import {
   parseCredentials,
   toMinorUnits,
 } from "./finance.utils";
-
-type MonoCredentials = { token: string };
-type PrivatCredentials = { clientId: string; token: string; iban: string };
 
 @Injectable()
 export class BanksService {
@@ -83,13 +87,7 @@ export class BanksService {
     await this.importMonobankAccounts(userId, connection, info);
     await connection.update({ lastSyncedAt: new Date() });
 
-    return {
-      id: connection.id,
-      provider: connection.provider,
-      label: connection.label,
-      lastSyncedAt: connection.lastSyncedAt,
-      message: "Connected",
-    };
+    return connection.toDto("Connected");
   }
 
   async connectPrivat(
@@ -122,13 +120,7 @@ export class BanksService {
     });
 
     await this.syncPrivat(userId, connection, 30);
-    return {
-      id: connection.id,
-      provider: connection.provider,
-      label: connection.label,
-      lastSyncedAt: connection.lastSyncedAt,
-      message: "Connected and synced",
-    };
+    return connection.toDto("Connected and synced");
   }
 
   async listConnections(userId: string): Promise<BankConnectionResponseDto[]> {
@@ -136,12 +128,7 @@ export class BanksService {
       where: { userId, isActive: true },
       order: [["createdAt", "DESC"]],
     });
-    return items.map((item) => ({
-      id: item.id,
-      provider: item.provider,
-      label: item.label,
-      lastSyncedAt: item.lastSyncedAt,
-    }));
+    return items.map((item) => item.toDto());
   }
 
   async sync(
@@ -158,13 +145,7 @@ export class BanksService {
       await this.syncPrivat(userId, connection, days);
     }
 
-    return {
-      id: connection.id,
-      provider: connection.provider,
-      label: connection.label,
-      lastSyncedAt: connection.lastSyncedAt,
-      message: "Synced successfully",
-    };
+    return connection.toDto("Synced successfully");
   }
 
   async disconnect(userId: string, connectionId: string) {
@@ -174,7 +155,7 @@ export class BanksService {
       { isActive: false },
       { where: { userId, bankConnectionId: connection.id } },
     );
-    return { message: "Bank connection disconnected" };
+    return { message: FINANCE_ERROR_MESSAGES.BANK_CONNECTION_DISCONNECTED };
   }
 
   async handleMonobankWebhook(payload: MonoWebhookPayload) {
@@ -193,7 +174,7 @@ export class BanksService {
         isActive: true,
       },
     });
-    if (!account) return { message: "account not found" };
+    if (!account) return { message: FINANCE_ERROR_MESSAGES.MONOBANK_ACCOUNT_NOT_FOUND };
 
     await this.upsertBankTransaction({
       userId: account.userId,
@@ -338,7 +319,7 @@ export class BanksService {
       balanceRow?.BALANCEOUT ?? balanceRow?.balance ?? 0,
     );
     const currency =
-      balanceRow?.CCY || balanceRow?.currency || "UAH";
+      balanceRow?.CCY || balanceRow?.currency || DEFAULT_CURRENCY;
 
     const account = await this.upsertAccount({
       userId,
@@ -477,7 +458,7 @@ export class BanksService {
   private async findOwned(userId: string, connectionId: string) {
     const connection = await this.bankConnectionModel.findByPk(connectionId);
     if (!connection || connection.userId !== userId || !connection.isActive) {
-      throw new NotFoundException("Bank connection not found");
+      throw new NotFoundException(FINANCE_ERROR_MESSAGES.BANK_CONNECTION_NOT_FOUND);
     }
     return connection;
   }
@@ -508,6 +489,6 @@ function parsePrivatDate(value?: string): Date | null {
       : [];
   if (parts.length !== 3) return null;
   const [dd, mm, yyyy] = parts;
-  const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-  return Number.isNaN(date.getTime()) ? null : date;
+  const parsed = dayjs(`${yyyy}-${mm}-${dd}`);
+  return parsed.isValid() ? parsed.toDate() : null;
 }

@@ -4,6 +4,9 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import dayjs from "dayjs";
+import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
+import { PRIVAT_API_URL, PRIVAT_PATHS } from "./privat.constants";
 
 export type PrivatBalanceRow = {
   ACC?: string;
@@ -29,8 +32,7 @@ export type PrivatTransactionRow = {
 @Injectable()
 export class PrivatClient {
   private readonly logger = new Logger(PrivatClient.name);
-  private readonly baseUrl =
-    process.env.PRIVAT_AUTOCLIENT_BASE_URL || "https://acp.privatbank.ua/api";
+  private readonly baseUrl = PRIVAT_API_URL;
 
   async getBalance(
     clientId: string,
@@ -48,7 +50,7 @@ export class PrivatClient {
     });
 
     const data = await this.request<{ balances?: PrivatBalanceRow[] } | PrivatBalanceRow[]>(
-      `/statements/balance?${query.toString()}`,
+      `${PRIVAT_PATHS.BALANCE}?${query.toString()}`,
       clientId,
       token,
     );
@@ -79,7 +81,7 @@ export class PrivatClient {
         exist_next_page?: boolean | string;
         followId?: string;
         next_page_id?: string;
-      }>(`/statements/transactions?${query.toString()}`, clientId, token);
+      }>(`${PRIVAT_PATHS.TRANSACTIONS}?${query.toString()}`, clientId, token);
 
       const chunk = data.transactions ?? [];
       rows.push(...chunk);
@@ -94,11 +96,8 @@ export class PrivatClient {
     return rows;
   }
 
-  formatDate(date: Date): string {
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const yyyy = date.getFullYear();
-    return `${dd}-${mm}-${yyyy}`;
+  formatDate(date: Date | string): string {
+    return dayjs(date).format("DD-MM-YYYY");
   }
 
   private async request<T>(
@@ -128,7 +127,9 @@ export class PrivatClient {
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`Privat network error on ${path}`);
-      throw new ServiceUnavailableException("PrivatBank API is unavailable");
+      throw new ServiceUnavailableException(
+        FINANCE_ERROR_MESSAGES.PRIVAT_API_UNAVAILABLE,
+      );
     }
   }
 }
