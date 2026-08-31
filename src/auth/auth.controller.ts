@@ -11,13 +11,13 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
-  ApiHeader,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import type { Request } from "express";
+import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { AuthTokensDto } from "src/core/dto/auth-tokens.dto";
 import { CreateUserDto } from "src/core/dto/user.dto";
 import { LoginDto } from "src/core/dto/login.dto";
@@ -27,42 +27,7 @@ import { RegisterResponseDto } from "src/core/dto/register-response.dto";
 import { AuthService } from "./auth.service";
 
 @ApiTags("auth")
-@ApiHeader({
-  name: "x-unit-system",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["metric", "imperial"],
-    default: "metric",
-  },
-})
-@ApiHeader({
-  name: "x-lang",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["en", "ru", "uk"],
-    default: "uk",
-  },
-})
-@ApiHeader({
-  name: "client-type",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["admin", "client"],
-    default: "client",
-  },
-})
-@ApiHeader({
-  name: "Currency",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["UAH", "USD", "EUR"],
-    default: "UAH",
-  },
-})
+@ApiCommonHeaders()
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

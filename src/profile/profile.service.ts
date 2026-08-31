@@ -6,26 +6,17 @@ import {
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { randomUUID } from "crypto";
+import { PROFILE_ERROR_MESSAGES } from "src/core/constants/profile-errors.constants";
 import { ProfileDto } from "src/core/dto/profile.dto";
 import { UpdateProfileDto } from "src/core/dto/update-profile.dto";
+import {
+  ALLOWED_AVATAR_MIME_TYPES,
+  AVATAR_MIME_TO_EXT,
+  AvatarMimeTypeEnum,
+  MAX_AVATAR_FILE_SIZE,
+} from "src/core/enums/profile.enums";
 import { UserProfile } from "src/db/dbModels/UserProfile";
 import { S3Service } from "src/s3/s3.service";
-
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-]);
-
-const MIME_TO_EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
-
-const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 
 @Injectable()
 export class ProfileService {
@@ -36,14 +27,7 @@ export class ProfileService {
   ) {}
 
   toProfileDto(profile: UserProfile): ProfileDto {
-    return {
-      id: profile.id,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      avatar: profile.avatar,
-      description: profile.description,
-      dateOfBirth: profile.dateOfBirth,
-    };
+    return profile.toDto();
   }
 
   async createForUser(
@@ -63,7 +47,7 @@ export class ProfileService {
 
   async getProfile(userId: string): Promise<ProfileDto> {
     const profile = await this.findByUserId(userId);
-    return this.toProfileDto(profile);
+    return profile.toDto();
   }
 
   async updateProfile(
@@ -73,17 +57,14 @@ export class ProfileService {
     const profile = await this.findByUserId(userId);
 
     try {
-      await profile.update({
-        ...(dto.firstName !== undefined && { firstName: dto.firstName }),
-        ...(dto.lastName !== undefined && { lastName: dto.lastName }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.dateOfBirth !== undefined && { dateOfBirth: dto.dateOfBirth }),
-      });
+      await profile.update({ ...dto });
     } catch {
-      throw new InternalServerErrorException("Failed to update profile");
+      throw new InternalServerErrorException(
+        PROFILE_ERROR_MESSAGES.UPDATE_FAILED,
+      );
     }
 
-    return this.toProfileDto(profile);
+    return profile.toDto();
   }
 
   async uploadAvatar(
@@ -95,7 +76,8 @@ export class ProfileService {
     const profile = await this.findByUserId(userId);
     const previousAvatar = profile.avatar;
 
-    const extension = MIME_TO_EXT[file.mimetype];
+    const extension =
+      AVATAR_MIME_TO_EXT[file.mimetype as AvatarMimeTypeEnum] || "jpg";
     const key = `avatars/${userId}/${randomUUID()}.${extension}`;
 
     await this.s3Service.upload(
@@ -109,39 +91,39 @@ export class ProfileService {
       await profile.update({ avatar: key });
     } catch {
       await this.s3Service.delete(key).catch(() => undefined);
-      throw new InternalServerErrorException("Failed to update profile");
+      throw new InternalServerErrorException(
+        PROFILE_ERROR_MESSAGES.UPDATE_FAILED,
+      );
     }
 
     if (previousAvatar && previousAvatar !== key) {
       await this.s3Service.delete(previousAvatar).catch(() => undefined);
     }
 
-    return this.toProfileDto(profile);
+    return profile.toDto();
   }
 
   private async findByUserId(userId: string): Promise<UserProfile> {
     const profile = await this.userProfileModel.findOne({ where: { userId } });
     if (!profile) {
-      throw new NotFoundException("Profile not found");
+      throw new NotFoundException(PROFILE_ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
     return profile;
   }
 
   private validateAvatarFile(file?: Express.Multer.File): void {
     if (!file) {
-      throw new BadRequestException("Avatar file is required");
+      throw new BadRequestException(PROFILE_ERROR_MESSAGES.AVATAR_REQUIRED);
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+    if (!ALLOWED_AVATAR_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException(
-        "Invalid avatar file type. Allowed: jpg, jpeg, png, webp",
+        PROFILE_ERROR_MESSAGES.AVATAR_INVALID_TYPE,
       );
     }
 
-    if (file.size > MAX_AVATAR_SIZE) {
-      throw new BadRequestException(
-        "Avatar file is too large. Maximum size is 5MB",
-      );
+    if (file.size > MAX_AVATAR_FILE_SIZE) {
+      throw new BadRequestException(PROFILE_ERROR_MESSAGES.AVATAR_TOO_LARGE);
     }
   }
 }

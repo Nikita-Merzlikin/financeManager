@@ -8,6 +8,9 @@ import {
   InternalServerErrorException,
   Logger,
 } from "@nestjs/common";
+import { S3_ERROR_MESSAGES } from "src/core/constants/s3-errors.constants";
+
+const DEFAULT_AWS_REGION = "us-east-1";
 
 @Injectable()
 export class S3Service {
@@ -16,7 +19,7 @@ export class S3Service {
   private readonly bucket: string;
 
   constructor() {
-    const region = process.env.AWS_REGION || "us-east-1";
+    const region = process.env.AWS_REGION || DEFAULT_AWS_REGION;
     this.bucket = process.env.AWS_S3_BUCKET || "";
 
     this.client = new S3Client({
@@ -56,7 +59,7 @@ export class S3Service {
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      throw new InternalServerErrorException("Failed to upload file");
+      throw new InternalServerErrorException(S3_ERROR_MESSAGES.UPLOAD_FAILED);
     }
   }
 
@@ -74,7 +77,7 @@ export class S3Service {
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      throw new InternalServerErrorException("Failed to delete file");
+      throw new InternalServerErrorException(S3_ERROR_MESSAGES.DELETE_FAILED);
     }
   }
 }

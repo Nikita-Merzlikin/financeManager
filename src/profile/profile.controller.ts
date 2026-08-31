@@ -14,7 +14,6 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
-  ApiHeader,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -24,50 +23,17 @@ import {
 import { memoryStorage } from "multer";
 import { CurrentUser } from "src/auth/decorators/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { ProfileDto } from "src/core/dto/profile.dto";
 import { UpdateProfileDto } from "src/core/dto/update-profile.dto";
 import { UploadAvatarDto } from "src/core/dto/upload-avatar.dto";
+import { MAX_AVATAR_FILE_SIZE } from "src/core/enums/profile.enums";
 import type { JwtPayload } from "src/core/types/jwt-payload.type";
 import { MulterExceptionFilter } from "./multer-exception.filter";
 import { ProfileService } from "./profile.service";
 
 @ApiTags("profile")
-@ApiHeader({
-  name: "x-unit-system",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["metric", "imperial"],
-    default: "metric",
-  },
-})
-@ApiHeader({
-  name: "x-lang",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["en", "ru", "uk"],
-    default: "uk",
-  },
-})
-@ApiHeader({
-  name: "client-type",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["admin", "client"],
-    default: "client",
-  },
-})
-@ApiHeader({
-  name: "Currency",
-  required: false,
-  schema: {
-    type: "string",
-    enum: ["UAH", "USD", "EUR"],
-    default: "UAH",
-  },
-})
+@ApiCommonHeaders()
 @ApiBearerAuth("access-token")
 @UseGuards(JwtAuthGuard)
 @UseFilters(MulterExceptionFilter)
@@ -129,7 +95,7 @@ export class ProfileController {
   @UseInterceptors(
     FileInterceptor("file", {
       storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
+      limits: { fileSize: MAX_AVATAR_FILE_SIZE },
     }),
   )
   uploadAvatar(

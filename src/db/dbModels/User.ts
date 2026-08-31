@@ -6,6 +6,7 @@ import {
   HasMany,
   HasOne,
 } from "sequelize-typescript";
+import { UserDto } from "src/core/dto/user.dto";
 import { Session } from "./Session";
 import { UserProfile } from "./UserProfile";
 
@@ -51,4 +52,15 @@ export class User extends Model {
 
   declare createdAt: Date;
   declare updatedAt: Date;
+
+  toDto(): UserDto {
+    return {
+      id: this.id,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      email: this.email,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
 }
