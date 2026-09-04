@@ -7,27 +7,9 @@ import {
 import dayjs from "dayjs";
 import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
 import { PRIVAT_API_URL, PRIVAT_PATHS } from "./privat.constants";
+import type { PrivatBalanceRow, PrivatTransactionRow } from "./privat.types";
 
-export type PrivatBalanceRow = {
-  ACC?: string;
-  balance?: string | number;
-  BALANCEOUT?: string | number;
-  BALANCEIN?: string | number;
-  currency?: string;
-  CCY?: string;
-};
-
-export type PrivatTransactionRow = {
-  ID?: string;
-  DAT_OD?: string;
-  SUM?: string | number;
-  AMOUNT?: string | number;
-  TRANTYPE?: string;
-  OSND?: string;
-  PURPOSE?: string;
-  CCY?: string;
-  currency?: string;
-};
+export type { PrivatBalanceRow, PrivatTransactionRow } from "./privat.types";
 
 @Injectable()
 export class PrivatClient {
