@@ -5,7 +5,10 @@ import { BankConnection } from "src/db/dbModels/BankConnection";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
 import { AccountsService } from "./accounts.service";
+import { BankFactory } from "./banks/bank.factory";
+import { MonobankBank } from "./banks/monobank.bank";
 import { MonobankClient } from "./banks/monobank.client";
+import { PrivatBank } from "./banks/privat.bank";
 import { PrivatClient } from "./banks/privat.client";
 import { BanksService } from "./banks.service";
 import { CategoriesService } from "./categories.service";
@@ -30,7 +33,10 @@ import { WebhooksController } from "./webhooks.controller";
     CategoriesService,
     DashboardService,
     BanksService,
+    BankFactory,
+    MonobankBank,
     MonobankClient,
+    PrivatBank,
     PrivatClient,
   ],
   exports: [DashboardService, AccountsService, TransactionsService],
