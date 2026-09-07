@@ -3,6 +3,12 @@ import type {
   AccountType,
   TransactionType,
 } from "src/core/enums/finance.enums";
+import type {
+  ConnectMonobankDto,
+  ConnectPrivatDto,
+} from "src/core/dto/finance.dto";
+
+export type ConnectBankDto = ConnectMonobankDto | ConnectPrivatDto;
 
 export interface BankAccountData {
   source: AccountSource;
@@ -31,18 +37,27 @@ export interface SyncResult {
   transactions: Map<string, BankTransactionData[]>;
 }
 
+export interface ConnectResult extends SyncResult {
+  credentialsJson: string;
+  label: string;
+  message: string;
+}
+
+export interface WebhookResult {
+  accountExternalId: string;
+  accountSource: AccountSource;
+  transaction: BankTransactionData;
+  balanceMinor?: bigint;
+}
+
 export interface Bank {
-  connect(
-    credentialsJson: string,
-    label?: string,
-  ): Promise<{
-    accounts: BankAccountData[];
-    label: string;
-  }>;
+  connect(dto: ConnectBankDto): Promise<ConnectResult>;
 
   sync(
     credentialsJson: string,
     days: number,
     connectionLabel?: string | null,
   ): Promise<SyncResult>;
+
+  handleWebhook?(payload: unknown): Promise<WebhookResult | null>;
 }

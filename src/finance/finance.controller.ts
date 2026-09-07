@@ -34,6 +34,7 @@ import {
   UpdateTransactionDto,
 } from "src/core/dto/finance.dto";
 import { MessageResponseDto } from "src/core/dto/message-response.dto";
+import { BankProvider } from "src/core/enums/finance.enums";
 import type { JwtPayload } from "src/core/types/jwt-payload.type";
 import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { AccountsService } from "./accounts.service";
@@ -185,7 +186,7 @@ export class FinanceController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: ConnectMonobankDto,
   ): Promise<BankConnectionResponseDto> {
-    return this.banksService.connectMonobank(user.sub, dto);
+    return this.banksService.connect(user.sub, dto, BankProvider.MONOBANK);
   }
 
   @Post("banks/privat/connect")
@@ -200,7 +201,7 @@ export class FinanceController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: ConnectPrivatDto,
   ): Promise<BankConnectionResponseDto> {
-    return this.banksService.connectPrivat(user.sub, dto);
+    return this.banksService.connect(user.sub, dto, BankProvider.PRIVAT);
   }
 
   @Post("banks/connections/:id/sync")

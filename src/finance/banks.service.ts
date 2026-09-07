@@ -1,28 +1,21 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import {
-  ConnectMonobankDto,
-  ConnectPrivatDto,
   SyncBankDto,
   BankConnectionResponseDto,
 } from "src/core/dto/finance.dto";
 import { FINANCE_ERROR_MESSAGES } from "src/core/constants/finance-errors.constants";
-import {
-  AccountSource,
-  BankProvider,
-  TransactionType,
-} from "src/core/enums/finance.enums";
+import { BankProvider } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { BankConnection } from "src/db/dbModels/BankConnection";
 import { Transaction } from "src/db/dbModels/Transaction";
 import type {
   BankAccountData,
   BankTransactionData,
+  ConnectBankDto,
+  SyncResult,
 } from "./banks/bank.interface";
 import { BankFactory } from "./banks/bank.factory";
-import { buildMonobankExternalId } from "./banks/bank-external-id";
-import { MonobankClient } from "./banks/monobank.client";
-import type { MonoWebhookPayload } from "./banks/monobank.types";
 import { formatMinorUnits } from "./finance.utils";
 
 @Injectable()
@@ -35,73 +28,37 @@ export class BanksService {
     @InjectModel(Transaction)
     private readonly transactionModel: typeof Transaction,
     private readonly bankFactory: BankFactory,
-    private readonly monobankClient: MonobankClient,
   ) {}
 
-  async connectMonobank(
+  async connect(
     userId: string,
-    dto: ConnectMonobankDto,
+    dto: ConnectBankDto,
+    provider: BankProvider,
   ): Promise<BankConnectionResponseDto> {
-    const credentialsJson = JSON.stringify({ token: dto.token });
-    const bank = this.bankFactory.get(BankProvider.MONOBANK);
-    const result = await bank.connect(credentialsJson, dto.label);
+    const bank = this.bankFactory.get(provider);
+    const result = await bank.connect(dto);
 
     const [connection] = await this.bankConnectionModel.findOrCreate({
-      where: { userId, provider: BankProvider.MONOBANK, isActive: true },
+      where: { userId, provider, isActive: true },
       defaults: {
         userId,
-        provider: BankProvider.MONOBANK,
-        credentialsEncrypted: credentialsJson,
+        provider,
+        credentialsEncrypted: result.credentialsJson,
         label: dto.label ?? result.label,
         isActive: true,
       },
     });
 
     await connection.update({
-      credentialsEncrypted: credentialsJson,
+      credentialsEncrypted: result.credentialsJson,
       label: dto.label ?? connection.label ?? result.label,
       isActive: true,
     });
 
-    for (const accountData of result.accounts) {
-      await this.upsertAccount(userId, connection.id, accountData);
-    }
-
+    await this.persistSyncResult(userId, connection.id, result);
     await connection.update({ lastSyncedAt: new Date() });
-    return connection.toDto("Connected");
-  }
 
-  async connectPrivat(
-    userId: string,
-    dto: ConnectPrivatDto,
-  ): Promise<BankConnectionResponseDto> {
-    const credentialsJson = JSON.stringify({
-      clientId: dto.clientId,
-      token: dto.token,
-      iban: dto.iban,
-    });
-    const bank = this.bankFactory.get(BankProvider.PRIVAT);
-    const result = await bank.connect(credentialsJson, dto.label);
-
-    const [connection] = await this.bankConnectionModel.findOrCreate({
-      where: { userId, provider: BankProvider.PRIVAT, isActive: true },
-      defaults: {
-        userId,
-        provider: BankProvider.PRIVAT,
-        credentialsEncrypted: credentialsJson,
-        label: dto.label ?? result.label,
-        isActive: true,
-      },
-    });
-
-    await connection.update({
-      credentialsEncrypted: credentialsJson,
-      label: dto.label ?? connection.label ?? result.label,
-      isActive: true,
-    });
-
-    await this.syncConnection(userId, connection, 30);
-    return connection.toDto("Connected and synced");
+    return connection.toDto(result.message);
   }
 
   async listConnections(userId: string): Promise<BankConnectionResponseDto[]> {
@@ -133,41 +90,35 @@ export class BanksService {
     return { message: FINANCE_ERROR_MESSAGES.BANK_CONNECTION_DISCONNECTED };
   }
 
-  async handleMonobankWebhook(payload: MonoWebhookPayload) {
-    if (payload.type !== "StatementItem" || !payload.data?.statementItem) {
+  async handleWebhook(provider: BankProvider, payload: unknown) {
+    const bank = this.bankFactory.get(provider);
+    if (!bank.handleWebhook) {
       return { message: "ignored" };
     }
 
-    const externalAccountId = payload.data.account;
-    const item = payload.data.statementItem;
-    if (!externalAccountId) return { message: "ignored" };
+    const result = await bank.handleWebhook(payload);
+    if (!result) return { message: "ignored" };
 
     const account = await this.accountModel.findOne({
       where: {
-        source: AccountSource.MONOBANK,
-        externalId: externalAccountId,
+        source: result.accountSource,
+        externalId: result.accountExternalId,
         isActive: true,
       },
     });
-    if (!account)
+    if (!account) {
       return { message: FINANCE_ERROR_MESSAGES.MONOBANK_ACCOUNT_NOT_FOUND };
+    }
 
-    await this.upsertBankTransaction(account.userId, account.id, {
-      source: AccountSource.MONOBANK,
-      externalId: buildMonobankExternalId(item.id),
-      amountMinor: this.monobankClient.toMinorAmount(item.amount),
-      type: item.amount >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
-      currency: this.monobankClient.mapCurrency(item.currencyCode),
-      description: item.comment || item.description,
-      occurredAt: new Date(item.time * 1000),
-      mcc: item.mcc,
-    });
+    await this.upsertBankTransaction(
+      account.userId,
+      account.id,
+      result.transaction,
+    );
 
-    if (typeof item.balance === "number") {
+    if (result.balanceMinor !== undefined) {
       await account.update({
-        balance: formatMinorUnits(
-          this.monobankClient.toMinorAmount(item.balance),
-        ),
+        balance: formatMinorUnits(result.balanceMinor),
       });
     }
 
@@ -186,8 +137,17 @@ export class BanksService {
       connection.label,
     );
 
+    await this.persistSyncResult(userId, connection.id, result);
+    await connection.update({ lastSyncedAt: new Date() });
+  }
+
+  private async persistSyncResult(
+    userId: string,
+    bankConnectionId: string,
+    result: SyncResult,
+  ) {
     for (const accountData of result.accounts) {
-      await this.upsertAccount(userId, connection.id, accountData);
+      await this.upsertAccount(userId, bankConnectionId, accountData);
     }
 
     for (const [externalId, txs] of result.transactions) {
@@ -200,8 +160,6 @@ export class BanksService {
         await this.upsertBankTransaction(userId, account.id, tx);
       }
     }
-
-    await connection.update({ lastSyncedAt: new Date() });
   }
 
   private async upsertAccount(

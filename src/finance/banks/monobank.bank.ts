@@ -10,12 +10,15 @@ import type {
   Bank,
   BankAccountData,
   BankTransactionData,
+  ConnectBankDto,
+  ConnectResult,
   SyncResult,
+  WebhookResult,
 } from "./bank.interface";
 import { buildMonobankExternalId } from "./bank-external-id";
 import type { MonoCredentials } from "./bank-credentials.types";
 import { MonobankClient } from "./monobank.client";
-import type { MonoClientInfo } from "./monobank.types";
+import type { MonoClientInfo, MonoWebhookPayload } from "./monobank.types";
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,15 +28,16 @@ function delay(ms: number) {
 export class MonobankBank implements Bank {
   constructor(private readonly client: MonobankClient) {}
 
-  async connect(
-    credentialsJson: string,
-    label?: string,
-  ): Promise<{ accounts: BankAccountData[]; label: string }> {
-    const credentials = parseCredentials<MonoCredentials>(credentialsJson);
-    const info = await this.client.getClientInfo(credentials.token);
+  async connect(dto: ConnectBankDto): Promise<ConnectResult> {
+    const credentialsJson = JSON.stringify({ token: dto.token });
+    const info = await this.client.getClientInfo(dto.token);
+
     return {
+      credentialsJson,
       accounts: this.mapAccounts(info),
-      label: label ?? info.name ?? MONOBANK_DEFAULT_LABEL,
+      transactions: new Map(),
+      label: dto.label ?? info.name ?? MONOBANK_DEFAULT_LABEL,
+      message: "Connected",
     };
   }
 
@@ -76,6 +80,37 @@ export class MonobankBank implements Bank {
     }
 
     return { accounts, transactions };
+  }
+
+  handleWebhook(payload: unknown): Promise<WebhookResult | null> {
+    const data = payload as MonoWebhookPayload;
+    if (data.type !== "StatementItem" || !data.data?.statementItem) {
+      return Promise.resolve(null);
+    }
+
+    const externalAccountId = data.data.account;
+    const item = data.data.statementItem;
+    if (!externalAccountId) return Promise.resolve(null);
+
+    return Promise.resolve({
+      accountExternalId: externalAccountId,
+      accountSource: AccountSource.MONOBANK,
+      transaction: {
+        source: AccountSource.MONOBANK,
+        externalId: buildMonobankExternalId(item.id),
+        amountMinor: this.client.toMinorAmount(item.amount),
+        type:
+          item.amount >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
+        currency: this.client.mapCurrency(item.currencyCode),
+        description: item.comment || item.description,
+        occurredAt: new Date(item.time * 1000),
+        mcc: item.mcc,
+      },
+      balanceMinor:
+        typeof item.balance === "number"
+          ? this.client.toMinorAmount(item.balance)
+          : undefined,
+    });
   }
 
   private mapAccounts(info: MonoClientInfo): BankAccountData[] {

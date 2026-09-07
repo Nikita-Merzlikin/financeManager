@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import dayjs from "dayjs";
+import type { ConnectPrivatDto } from "src/core/dto/finance.dto";
 import {
   AccountSource,
   AccountType,
@@ -14,6 +15,8 @@ import type {
   Bank,
   BankAccountData,
   BankTransactionData,
+  ConnectBankDto,
+  ConnectResult,
   SyncResult,
 } from "./bank.interface";
 import type { PrivatCredentials } from "./bank-credentials.types";
@@ -25,20 +28,23 @@ import type { PrivatBalanceRow } from "./privat.types";
 export class PrivatBank implements Bank {
   constructor(private readonly client: PrivatClient) {}
 
-  async connect(
-    credentialsJson: string,
-    label?: string,
-  ): Promise<{ accounts: BankAccountData[]; label: string }> {
-    const credentials = parseCredentials<PrivatCredentials>(credentialsJson);
-    await this.client.getBalance(
-      credentials.clientId,
-      credentials.token,
-      credentials.iban,
-    );
+  async connect(dto: ConnectBankDto): Promise<ConnectResult> {
+    const privatDto = dto as ConnectPrivatDto;
+    const credentialsJson = JSON.stringify({
+      clientId: privatDto.clientId,
+      token: privatDto.token,
+      iban: privatDto.iban,
+    });
+    const label = privatDto.label ?? PRIVAT_DEFAULT_ACCOUNT_LABEL;
+
+    // Preserve previous behavior: validate credentials, then sync 30 days.
+    const syncResult = await this.sync(credentialsJson, 30, label);
 
     return {
-      accounts: [],
-      label: label ?? PRIVAT_DEFAULT_ACCOUNT_LABEL,
+      credentialsJson,
+      label,
+      message: "Connected and synced",
+      ...syncResult,
     };
   }
 
