@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Post, Res } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import type { Response } from "express";
+import { BankProvider } from "src/core/enums/finance.enums";
 import type { MonoWebhookPayload } from "./banks/monobank.types";
 import { BanksService } from "./banks.service";
 
@@ -17,7 +18,7 @@ export class WebhooksController {
   @Post("monobank")
   @HttpCode(200)
   async monobankWebhook(@Body() payload: MonoWebhookPayload) {
-    await this.banksService.handleMonobankWebhook(payload);
+    await this.banksService.handleWebhook(BankProvider.MONOBANK, payload);
     return { status: "ok" };
   }
 }
