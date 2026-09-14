@@ -13,6 +13,7 @@ import { AiChatRequestDto, AiChatResponseDto } from "src/core/dto/ai.dto";
 import type { JwtPayload } from "src/core/types/jwt-payload.type";
 import { AgentOrchestrator } from "./agent.orchestrator";
 
+/** Thin HTTP layer for the finance AI agent. */
 @ApiTags("ai")
 @ApiCommonHeaders()
 @ApiBearerAuth("access-token")
@@ -34,6 +35,7 @@ export class AiController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: AiChatRequestDto,
   ): Promise<AiChatResponseDto> {
+    // Never trust model-supplied user identity — always use JWT sub.
     return this.agentOrchestrator.chat(user.sub, dto);
   }
 }

@@ -4,6 +4,7 @@ import type { AiToolContext, AiToolResult } from "src/core/types/ai.types";
 import { CategoriesService } from "src/finance/categories.service";
 import type { AiTool } from "./ai-tool.interface";
 
+/** Tool: list income/expense categories. */
 @Injectable()
 export class GetCategoriesTool implements AiTool {
   readonly name = AI_TOOL_NAMES.GET_CATEGORIES;

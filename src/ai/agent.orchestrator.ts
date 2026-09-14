@@ -12,6 +12,10 @@ import { getAiConfig } from "./ai.config";
 import { FINANCIAL_AGENT_SYSTEM_PROMPT } from "./prompts/financial-agent.prompt";
 import { AiToolRegistry } from "./tools/ai-tool.registry";
 
+/**
+ * Agent loop: LLM <-> whitelist tools.
+ * userId is injected from auth and never taken from model arguments.
+ */
 @Injectable()
 export class AgentOrchestrator {
   private readonly logger = new Logger(AgentOrchestrator.name);
@@ -40,6 +44,7 @@ export class AgentOrchestrator {
     let functionResults: LlmFunctionResult[] | undefined;
     let pendingUserMessage: string | undefined = message;
 
+    // LLM may request tools; execute them and continue until a final text reply.
     for (
       let iteration = 0;
       iteration <= config.maxToolIterations;

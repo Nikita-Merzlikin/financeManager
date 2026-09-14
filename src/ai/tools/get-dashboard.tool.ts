@@ -5,6 +5,7 @@ import type { AiToolContext, AiToolResult } from "src/core/types/ai.types";
 import { DashboardService } from "src/finance/dashboard.service";
 import type { AiTool } from "./ai-tool.interface";
 
+/** Tool: period dashboard summary (best for spend-by-category questions). */
 @Injectable()
 export class GetDashboardTool implements AiTool {
   readonly name = AI_TOOL_NAMES.GET_DASHBOARD;

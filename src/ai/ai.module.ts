@@ -11,6 +11,7 @@ import { GetCategoriesTool } from "./tools/get-categories.tool";
 import { GetDashboardTool } from "./tools/get-dashboard.tool";
 import { GetTransactionsTool } from "./tools/get-transactions.tool";
 
+/** Finance AI agent: chat endpoint + Gemini provider + whitelist tools. */
 @Module({
   imports: [FinanceModule],
   controllers: [AiController],
@@ -23,6 +24,7 @@ import { GetTransactionsTool } from "./tools/get-transactions.tool";
     GetDashboardTool,
     CreateTransactionTool,
     GeminiProvider,
+    // Swap provider here without changing the orchestrator.
     {
       provide: LLM_PROVIDER,
       useExisting: GeminiProvider,

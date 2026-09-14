@@ -7,6 +7,7 @@ import type { AiToolContext, AiToolResult } from "src/core/types/ai.types";
 import { TransactionsService } from "src/finance/transactions.service";
 import type { AiTool } from "./ai-tool.interface";
 
+/** Tool: create a manual transaction via TransactionsService (ownership enforced there). */
 @Injectable()
 export class CreateTransactionTool implements AiTool {
   readonly name = AI_TOOL_NAMES.CREATE_TRANSACTION;

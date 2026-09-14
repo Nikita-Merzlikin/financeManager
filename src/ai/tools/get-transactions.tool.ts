@@ -6,6 +6,7 @@ import type { AiToolContext, AiToolResult } from "src/core/types/ai.types";
 import { TransactionsService } from "src/finance/transactions.service";
 import type { AiTool } from "./ai-tool.interface";
 
+/** Tool: list transactions with optional date/category/type filters. */
 @Injectable()
 export class GetTransactionsTool implements AiTool {
   readonly name = AI_TOOL_NAMES.GET_TRANSACTIONS;

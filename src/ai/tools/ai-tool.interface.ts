@@ -4,6 +4,7 @@ import type {
   LlmToolDeclaration,
 } from "src/core/types/ai.types";
 
+/** Explicit tool contract — only registered tools can be invoked by the model. */
 export interface AiTool {
   readonly name: string;
   readonly description: string;

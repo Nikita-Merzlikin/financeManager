@@ -4,6 +4,7 @@ import type { AiToolContext, AiToolResult } from "src/core/types/ai.types";
 import { AccountsService } from "src/finance/accounts.service";
 import type { AiTool } from "./ai-tool.interface";
 
+/** Tool: list account balances for the authenticated user. */
 @Injectable()
 export class GetBalanceTool implements AiTool {
   readonly name = AI_TOOL_NAMES.GET_BALANCE;

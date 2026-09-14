@@ -1,3 +1,5 @@
+/** Shared AI/LLM types used by the orchestrator and providers. */
+
 export type LlmToolParameterSchema = {
   type: "object";
   properties: Record<string, Record<string, unknown>>;

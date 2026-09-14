@@ -13,6 +13,7 @@ import { GetCategoriesTool } from "./get-categories.tool";
 import { GetDashboardTool } from "./get-dashboard.tool";
 import { GetTransactionsTool } from "./get-transactions.tool";
 
+/** Whitelist registry of AI tools backed by finance domain services. */
 @Injectable()
 export class AiToolRegistry {
   private readonly tools: Map<string, AiTool>;
@@ -51,6 +52,7 @@ export class AiToolRegistry {
     try {
       return await tool.execute(ctx, args);
     } catch (error) {
+      // Return domain errors to the model instead of aborting the whole chat turn.
       if (error instanceof HttpException) {
         return { ok: false, error: extractHttpMessage(error) };
       }

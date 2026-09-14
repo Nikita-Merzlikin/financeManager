@@ -38,6 +38,7 @@ export class TransactionsService {
     return tx.toDto();
   }
 
+  /** Optional categoryId/type filters are used by the AI get_transactions tool. */
   async list(
     userId: string,
     from?: string,

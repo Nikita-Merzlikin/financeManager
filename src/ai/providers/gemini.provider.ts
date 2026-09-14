@@ -28,6 +28,7 @@ type InteractionLike = {
   steps?: InteractionStep[];
 };
 
+/** Adapter over Google GenAI Interactions API (@google/genai). */
 @Injectable()
 export class GeminiProvider implements LlmProvider {
   private readonly logger = new Logger(GeminiProvider.name);
@@ -48,6 +49,7 @@ export class GeminiProvider implements LlmProvider {
       system_instruction: request.systemInstruction,
     };
 
+    // Continue a turn with tool results, continue chat, or start a new interaction.
     if (request.previousInteractionId && request.functionResults?.length) {
       payload.previous_interaction_id = request.previousInteractionId;
       payload.input = request.functionResults.map((item) => ({
@@ -155,6 +157,7 @@ export class GeminiProvider implements LlmProvider {
   }
 }
 
+/** Soft timeout wrapper so hung Gemini calls fail with a clear error. */
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {

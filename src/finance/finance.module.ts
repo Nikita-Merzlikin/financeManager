@@ -43,7 +43,7 @@ import { WebhooksController } from "./webhooks.controller";
     DashboardService,
     AccountsService,
     TransactionsService,
-    CategoriesService,
+    CategoriesService, // needed by AiModule tools
   ],
 })
 export class FinanceModule {}

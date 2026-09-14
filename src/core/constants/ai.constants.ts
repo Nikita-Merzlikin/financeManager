@@ -1,3 +1,4 @@
+/** Defaults and tool name constants for the finance AI agent. */
 export const AI_DEFAULT_MODEL = "gemini-3.8-flash";
 export const AI_DEFAULT_MAX_TOOL_ITERATIONS = 5;
 export const AI_DEFAULT_TIMEOUT_MS = 30_000;

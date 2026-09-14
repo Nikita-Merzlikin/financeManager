@@ -5,6 +5,7 @@ import {
   AI_DEFAULT_TIMEOUT_MS,
 } from "src/core/constants/ai.constants";
 
+/** Reads AI settings from process.env (loaded via dotenv in main.ts). */
 export function getAiConfig() {
   return {
     apiKey: process.env.GEMINI_API_KEY ?? "",
