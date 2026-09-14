@@ -39,6 +39,11 @@ import { WebhooksController } from "./webhooks.controller";
     PrivatBank,
     PrivatClient,
   ],
-  exports: [DashboardService, AccountsService, TransactionsService],
+  exports: [
+    DashboardService,
+    AccountsService,
+    TransactionsService,
+    CategoriesService,
+  ],
 })
 export class FinanceModule {}

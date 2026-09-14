@@ -11,10 +11,7 @@ import {
   TransactionDto,
   UpdateTransactionDto,
 } from "src/core/dto/finance.dto";
-import {
-  AccountSource,
-  TransactionType,
-} from "src/core/enums/finance.enums";
+import { AccountSource, TransactionType } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
@@ -45,6 +42,10 @@ export class TransactionsService {
     userId: string,
     from?: string,
     to?: string,
+    filters?: {
+      categoryId?: string;
+      type?: TransactionType;
+    },
   ): Promise<TransactionDto[]> {
     const where: Record<string, unknown> = { userId };
     if (from || to) {
@@ -52,6 +53,12 @@ export class TransactionsService {
         ...(from ? { [Op.gte]: new Date(from) } : {}),
         ...(to ? { [Op.lte]: new Date(to) } : {}),
       };
+    }
+    if (filters?.categoryId) {
+      where.categoryId = filters.categoryId;
+    }
+    if (filters?.type) {
+      where.type = filters.type;
     }
 
     const items = await this.transactionModel.findAll({
@@ -94,9 +101,7 @@ export class TransactionsService {
   ): Promise<TransactionDto> {
     const tx = await this.findOwned(userId, transactionId);
     if (tx.source !== AccountSource.MANUAL) {
-      throw new BadRequestException(
-        FINANCE_ERROR_MESSAGES.ONLY_MANUAL_TX_EDIT,
-      );
+      throw new BadRequestException(FINANCE_ERROR_MESSAGES.ONLY_MANUAL_TX_EDIT);
     }
 
     const account = await this.accountsService.findOwned(userId, tx.accountId);
