@@ -1,5 +1,6 @@
 import { AgentOrchestrator } from "./agent.orchestrator";
 import type {
+  AiChatStreamEvent,
   LlmProvider,
   LlmRequest,
   LlmResponse,
@@ -219,5 +220,48 @@ describe("AgentOrchestrator", () => {
       { userId: "user-1" },
       { userId: "attacker" },
     );
+  });
+
+  it("streams status, text deltas, and done events", async () => {
+    const llm: LlmProvider = {
+      generate: jest.fn().mockResolvedValue({
+        interactionId: "i-1",
+        text: "Hello",
+        functionCalls: [],
+      }),
+      generateStream: jest.fn().mockImplementation(async function* () {
+        await Promise.resolve();
+        yield { type: "text_delta", text: "Hel" };
+        yield { type: "text_delta", text: "lo" };
+        yield {
+          type: "final",
+          interactionId: "i-stream",
+          text: "Hello",
+          functionCalls: [],
+        };
+      }),
+    };
+    const registry = {
+      getDeclarations: jest.fn().mockReturnValue([]),
+      execute: jest.fn(),
+    };
+
+    const orchestrator = createOrchestrator({ llm, registry });
+    const events: AiChatStreamEvent[] = [];
+    for await (const event of orchestrator.chatStream(userId, {
+      message: "hi",
+    })) {
+      events.push(event);
+    }
+
+    expect(events[0]).toEqual({ type: "status", message: "Thinking..." });
+    expect(events).toContainEqual({ type: "text_delta", text: "Hel" });
+    expect(events).toContainEqual({ type: "text_delta", text: "lo" });
+    expect(events[events.length - 1]).toEqual({
+      type: "done",
+      reply: "Hello",
+      conversationId: "i-stream",
+      toolsUsed: undefined,
+    });
   });
 });

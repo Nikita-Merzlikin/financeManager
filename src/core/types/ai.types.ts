@@ -41,8 +41,20 @@ export type LlmResponse = {
   functionCalls: LlmFunctionCall[];
 };
 
+/** Streaming chunks from the LLM provider (text deltas and/or final frame). */
+export type LlmStreamChunk =
+  | { type: "text_delta"; text: string }
+  | {
+      type: "final";
+      interactionId: string;
+      text: string | null;
+      functionCalls: LlmFunctionCall[];
+    };
+
 export interface LlmProvider {
   generate(request: LlmRequest): Promise<LlmResponse>;
+  /** Optional streaming; falls back to generate() when unimplemented. */
+  generateStream?(request: LlmRequest): AsyncIterable<LlmStreamChunk>;
 }
 
 export type AiToolContext = {
@@ -54,3 +66,17 @@ export type AiToolResult = {
   data?: unknown;
   error?: string;
 };
+
+/** SSE events emitted by the streaming chat endpoint. */
+export type AiChatStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "tool_start"; name: string }
+  | { type: "tool_result"; name: string; result: AiToolResult }
+  | { type: "text_delta"; text: string }
+  | {
+      type: "done";
+      reply: string;
+      conversationId: string;
+      toolsUsed?: string[];
+    }
+  | { type: "error"; message: string };
