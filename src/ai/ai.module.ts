@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { FinanceModule } from "src/finance/finance.module";
 import { LLM_PROVIDER } from "src/core/constants/ai.constants";
+import { AiErrorInterceptor } from "./ai-error.interceptor";
 import { AgentOrchestrator } from "./agent.orchestrator";
 import { AiController } from "./ai.controller";
 import { GeminiProvider } from "./providers/gemini.provider";
@@ -16,6 +17,7 @@ import { GetTransactionsTool } from "./tools/get-transactions.tool";
   imports: [FinanceModule],
   controllers: [AiController],
   providers: [
+    AiErrorInterceptor,
     AgentOrchestrator,
     AiToolRegistry,
     GetBalanceTool,

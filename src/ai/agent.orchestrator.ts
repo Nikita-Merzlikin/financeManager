@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { AI_ERROR_MESSAGES } from "src/core/constants/ai-errors.constants";
 import { LLM_PROVIDER } from "src/core/constants/ai.constants";
@@ -17,6 +18,7 @@ import type {
 } from "src/core/types/ai.types";
 import { getAiConfig } from "./ai.config";
 import { FINANCIAL_AGENT_SYSTEM_PROMPT } from "./prompts/financial-agent.prompt";
+import { mapGeminiError } from "./providers/gemini-error.mapper";
 import { AiToolRegistry } from "./tools/ai-tool.registry";
 
 /**
@@ -50,7 +52,16 @@ export class AgentOrchestrator {
         toolsUsed = event.toolsUsed;
       }
       if (event.type === "error") {
-        throw new BadRequestException(event.message);
+        // User/input problems → 400; provider/runtime problems → 503.
+        if (
+          event.message === AI_ERROR_MESSAGES.MESSAGE_REQUIRED ||
+          event.message === AI_ERROR_MESSAGES.MESSAGE_TOO_LONG ||
+          event.message === AI_ERROR_MESSAGES.MAX_TOOL_ITERATIONS ||
+          event.message === AI_ERROR_MESSAGES.INVALID_TOOL_ARGUMENTS
+        ) {
+          throw new BadRequestException(event.message);
+        }
+        throw new ServiceUnavailableException(event.message);
       }
     }
 
@@ -175,7 +186,8 @@ export class AgentOrchestrator {
         message: AI_ERROR_MESSAGES.MAX_TOOL_ITERATIONS,
       };
     } catch (error) {
-      const messageText = extractErrorMessage(error);
+      const httpError = mapGeminiError(error);
+      const messageText = extractErrorMessage(httpError);
       this.logger.error(`chatStream failed: ${messageText}`);
       yield { type: "error", message: messageText };
     }

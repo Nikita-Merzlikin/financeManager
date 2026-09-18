@@ -1,4 +1,11 @@
-import { Body, Controller, Post, Res, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Post,
+  Res,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -13,6 +20,7 @@ import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { AiChatRequestDto, AiChatResponseDto } from "src/core/dto/ai.dto";
 import type { JwtPayload } from "src/core/types/jwt-payload.type";
+import { AiErrorInterceptor } from "./ai-error.interceptor";
 import { AgentOrchestrator } from "./agent.orchestrator";
 
 /** Thin HTTP layer for the finance AI agent. */
@@ -20,6 +28,7 @@ import { AgentOrchestrator } from "./agent.orchestrator";
 @ApiCommonHeaders()
 @ApiBearerAuth("access-token")
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(AiErrorInterceptor)
 @Controller("ai")
 export class AiController {
   constructor(private readonly agentOrchestrator: AgentOrchestrator) {}

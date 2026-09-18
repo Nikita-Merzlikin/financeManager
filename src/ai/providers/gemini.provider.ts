@@ -2,9 +2,8 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
-  BadRequestException,
 } from "@nestjs/common";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Interactions } from "@google/genai";
 import { AI_ERROR_MESSAGES } from "src/core/constants/ai-errors.constants";
 import type {
   LlmFunctionCall,
@@ -12,17 +11,19 @@ import type {
   LlmRequest,
   LlmResponse,
   LlmStreamChunk,
+  LlmToolDeclaration,
 } from "src/core/types/ai.types";
 import { getAiConfig } from "../ai.config";
+import { GeminiApiError } from "./gemini-api.error";
+import {
+  GEMINI_DELTA_TYPE,
+  GEMINI_INPUT_TYPE,
+  GEMINI_SSE_EVENT,
+  GEMINI_STEP_TYPE,
+} from "./gemini.constants";
 
-type InteractionStep = {
-  type?: string;
-  id?: string;
-  name?: string;
-  arguments?: Record<string, unknown>;
-  content?: Array<{ type?: string; text?: string }>;
-};
-
+type InteractionSseEvent = Interactions.InteractionSSEEvent;
+type InteractionStep = Interactions.Step;
 type InteractionLike = {
   id?: string;
   output_text?: string;
@@ -33,122 +34,84 @@ type InteractionLike = {
 @Injectable()
 export class GeminiProvider implements LlmProvider {
   private readonly logger = new Logger(GeminiProvider.name);
+  private readonly client: GoogleGenAI | null;
+
+  constructor() {
+    const { apiKey } = getAiConfig();
+    this.client = apiKey ? new GoogleGenAI({ apiKey }) : null;
+  }
 
   async generate(request: LlmRequest): Promise<LlmResponse> {
-    const { apiKey } = getAiConfig();
-    if (!apiKey) {
-      throw new ServiceUnavailableException(
-        AI_ERROR_MESSAGES.GEMINI_API_KEY_MISSING,
-      );
-    }
-
-    const client = new GoogleGenAI({ apiKey });
-    const payload = this.buildPayload(request);
+    const client = this.requireClient();
+    const payload = this.buildNonStreamPayload(request);
 
     try {
-      const interaction = (await withTimeout(
-        client.interactions.create(payload as never),
+      const result = await withTimeout(
+        client.interactions.create(payload),
         request.timeoutMs,
-      )) as InteractionLike;
-
-      return this.mapResponse(interaction);
+      );
+      if (isAsyncIterable(result)) {
+        throw new GeminiApiError(AI_ERROR_MESSAGES.MALFORMED_RESPONSE);
+      }
+      return this.mapResponse(result);
     } catch (error) {
-      throw this.mapError(error);
+      throw this.toProviderError(error);
     }
   }
 
   /**
    * Stream text deltas when possible; always ends with a `final` chunk.
-   * Falls back to non-streaming generate() if the SDK stream shape is unexpected.
+   * Falls back to non-streaming generate() only when nothing was emitted yet
+   * (avoids duplicating text already sent to the client).
    */
   async *generateStream(request: LlmRequest): AsyncIterable<LlmStreamChunk> {
-    const { apiKey } = getAiConfig();
-    if (!apiKey) {
-      throw new ServiceUnavailableException(
-        AI_ERROR_MESSAGES.GEMINI_API_KEY_MISSING,
-      );
-    }
+    const client = this.requireClient();
+    const payload = this.buildStreamPayload(request);
 
-    const client = new GoogleGenAI({ apiKey });
-    const payload = {
-      ...this.buildPayload(request),
-      stream: true,
-    };
+    let emittedText = false;
+    let interactionId = "";
+    let text = "";
+    const functionCalls: LlmFunctionCall[] = [];
 
     try {
-      const stream = (await withTimeout(
-        client.interactions.create(payload as never),
+      const result = await withTimeout(
+        client.interactions.create(payload),
         request.timeoutMs,
-      )) as unknown as AsyncIterable<Record<string, unknown>>;
+      );
 
-      if (
-        !stream ||
-        typeof (stream as AsyncIterable<unknown>)[Symbol.asyncIterator] !==
-          "function"
-      ) {
-        const fallback = await this.generate(request);
-        if (fallback.text) {
-          yield { type: "text_delta", text: fallback.text };
+      if (!isAsyncIterable<InteractionSseEvent>(result)) {
+        // SDK returned a completed interaction instead of a stream.
+        const mapped = this.mapResponse(result);
+        if (mapped.text) {
+          yield { type: "text_delta", text: mapped.text };
         }
         yield {
           type: "final",
-          interactionId: fallback.interactionId,
-          text: fallback.text,
-          functionCalls: fallback.functionCalls,
+          interactionId: mapped.interactionId,
+          text: mapped.text,
+          functionCalls: mapped.functionCalls,
         };
         return;
       }
 
-      let interactionId = "";
-      let text = "";
-      const functionCalls: LlmFunctionCall[] = [];
-
-      for await (const event of stream) {
-        const rawType = event.event_type ?? event.type;
-        const eventType = typeof rawType === "string" ? rawType : "";
-        const step = event.step as InteractionStep | undefined;
-        const delta = event.delta as
-          | { type?: string; text?: string; partial_arguments?: string }
-          | undefined;
-
-        if (typeof event.id === "string" && event.id) {
-          interactionId = event.id;
-        }
-        if (typeof event.interaction_id === "string" && event.interaction_id) {
-          interactionId = event.interaction_id;
-        }
-
-        if (
-          eventType.includes("delta") &&
-          delta?.type === "text" &&
-          delta.text
-        ) {
-          text += delta.text;
-          yield { type: "text_delta", text: delta.text };
-        }
-
-        if (
-          (eventType.includes("step.start") || eventType === "step") &&
-          step?.type === "function_call" &&
-          step.name &&
-          step.id
-        ) {
-          functionCalls.push({
-            id: step.id,
-            name: step.name,
-            arguments:
-              step.arguments && typeof step.arguments === "object"
-                ? step.arguments
-                : {},
-          });
-        }
-
-        if (eventType.includes("completed") || eventType.includes("complete")) {
-          const completed = event.interaction as InteractionLike | undefined;
-          if (completed) {
+      for await (const event of withIdleTimeout(result, request.timeoutMs)) {
+        this.consumeSseEvent(event, {
+          onInteractionId: (id) => {
+            interactionId = id;
+          },
+          onTextDelta: (delta) => {
+            text += delta;
+            emittedText = true;
+          },
+          onFunctionCall: (call) => {
+            functionCalls.push(call);
+          },
+          onCompletedInteraction: (completed) => {
             const mapped = this.mapResponse(completed);
             interactionId = mapped.interactionId;
-            text = mapped.text ?? text;
+            if (mapped.text) {
+              text = mapped.text;
+            }
             if (mapped.functionCalls.length > 0) {
               functionCalls.splice(
                 0,
@@ -156,25 +119,28 @@ export class GeminiProvider implements LlmProvider {
                 ...mapped.functionCalls,
               );
             }
-          }
+          },
+        });
+
+        if (
+          event.event_type === GEMINI_SSE_EVENT.STEP_DELTA &&
+          event.delta.type === GEMINI_DELTA_TYPE.TEXT &&
+          event.delta.text
+        ) {
+          yield { type: "text_delta", text: event.delta.text };
         }
       }
 
       if (!interactionId) {
-        // Stream finished without a usable id — fall back to a normal request.
-        const fallback = await this.generate({
-          ...request,
-          timeoutMs: request.timeoutMs,
-        });
-        yield {
-          type: "final",
-          interactionId: fallback.interactionId,
-          text: fallback.text ?? (text || null),
-          functionCalls:
-            fallback.functionCalls.length > 0
-              ? fallback.functionCalls
-              : functionCalls,
-        };
+        if (emittedText || functionCalls.length > 0) {
+          // Already pushed content to the client — do not regenerate (would duplicate).
+          this.logger.warn(
+            "Gemini stream ended without interaction id after emitting content",
+          );
+          throw new GeminiApiError(AI_ERROR_MESSAGES.MALFORMED_RESPONSE);
+        }
+
+        yield* this.fallbackStream(request);
         return;
       }
 
@@ -185,67 +151,169 @@ export class GeminiProvider implements LlmProvider {
         functionCalls,
       };
     } catch (error) {
-      // Prefer a reliable non-stream call over failing the whole chat turn.
+      if (emittedText || functionCalls.length > 0) {
+        // Partial stream already visible to the user — finalize, don't re-fetch text.
+        this.logger.warn(
+          `Gemini stream interrupted after partial output: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        if (interactionId) {
+          yield {
+            type: "final",
+            interactionId,
+            text: text.trim() ? text : null,
+            functionCalls,
+          };
+          return;
+        }
+        throw this.toProviderError(error);
+      }
+
       this.logger.warn(
-        `Gemini stream failed, falling back to generate(): ${
+        `Gemini stream failed before output, falling back to generate(): ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      const fallback = await this.generate(request);
-      if (fallback.text) {
-        yield { type: "text_delta", text: fallback.text };
-      }
-      yield {
-        type: "final",
-        interactionId: fallback.interactionId,
-        text: fallback.text,
-        functionCalls: fallback.functionCalls,
-      };
+      yield* this.fallbackStream(request);
     }
   }
 
-  private buildPayload(request: LlmRequest): Record<string, unknown> {
-    const payload: Record<string, unknown> = {
+  private async *fallbackStream(
+    request: LlmRequest,
+  ): AsyncGenerator<LlmStreamChunk> {
+    const fallback = await this.generate(request);
+    if (fallback.text) {
+      yield { type: "text_delta", text: fallback.text };
+    }
+    yield {
+      type: "final",
+      interactionId: fallback.interactionId,
+      text: fallback.text,
+      functionCalls: fallback.functionCalls,
+    };
+  }
+
+  private requireClient(): GoogleGenAI {
+    if (!this.client) {
+      throw new ServiceUnavailableException(
+        AI_ERROR_MESSAGES.GEMINI_API_KEY_MISSING,
+      );
+    }
+    return this.client;
+  }
+
+  private buildNonStreamPayload(
+    request: LlmRequest,
+  ): Interactions.CreateModelInteractionParamsNonStreaming {
+    return {
+      ...this.buildBasePayload(request),
+      stream: false,
+    };
+  }
+
+  private buildStreamPayload(
+    request: LlmRequest,
+  ): Interactions.CreateModelInteractionParamsStreaming {
+    return {
+      ...this.buildBasePayload(request),
+      stream: true,
+    };
+  }
+
+  private buildBasePayload(request: LlmRequest) {
+    const base = {
       model: request.model,
-      tools: request.tools,
+      tools: request.tools.map(toGeminiTool),
       system_instruction: request.systemInstruction,
     };
 
-    // Continue a turn with tool results, continue chat, or start a new interaction.
     if (request.previousInteractionId && request.functionResults?.length) {
-      payload.previous_interaction_id = request.previousInteractionId;
-      payload.input = request.functionResults.map((item) => ({
-        type: "function_result",
-        name: item.name,
-        call_id: item.callId,
-        result: [
-          {
-            type: "text",
-            text: JSON.stringify(item.result),
-          },
-        ],
-      }));
-    } else if (request.previousInteractionId && request.userMessage) {
-      payload.previous_interaction_id = request.previousInteractionId;
-      payload.input = request.userMessage;
-    } else {
-      payload.input = request.userMessage ?? "";
+      return {
+        ...base,
+        previous_interaction_id: request.previousInteractionId,
+        input: request.functionResults.map((item) => ({
+          type: GEMINI_INPUT_TYPE.FUNCTION_RESULT,
+          name: item.name,
+          call_id: item.callId,
+          result: [
+            {
+              type: GEMINI_INPUT_TYPE.TEXT,
+              text: JSON.stringify(item.result),
+            },
+          ],
+        })),
+      };
     }
 
-    return payload;
+    if (request.previousInteractionId && request.userMessage) {
+      return {
+        ...base,
+        previous_interaction_id: request.previousInteractionId,
+        input: request.userMessage,
+      };
+    }
+
+    return {
+      ...base,
+      input: request.userMessage ?? "",
+    };
+  }
+
+  private consumeSseEvent(
+    event: InteractionSseEvent,
+    handlers: {
+      onInteractionId: (id: string) => void;
+      onTextDelta: (text: string) => void;
+      onFunctionCall: (call: LlmFunctionCall) => void;
+      onCompletedInteraction: (interaction: InteractionLike) => void;
+    },
+  ): void {
+    if (
+      event.event_type === GEMINI_SSE_EVENT.INTERACTION_CREATED ||
+      event.event_type === GEMINI_SSE_EVENT.INTERACTION_COMPLETED
+    ) {
+      handlers.onInteractionId(event.interaction.id);
+      if (event.event_type === GEMINI_SSE_EVENT.INTERACTION_COMPLETED) {
+        handlers.onCompletedInteraction(event.interaction);
+      }
+      return;
+    }
+
+    if (event.event_type === GEMINI_SSE_EVENT.STEP_DELTA) {
+      if (
+        event.delta.type === GEMINI_DELTA_TYPE.TEXT &&
+        typeof event.delta.text === "string"
+      ) {
+        handlers.onTextDelta(event.delta.text);
+      }
+      return;
+    }
+
+    if (event.event_type === GEMINI_SSE_EVENT.STEP_START) {
+      const step = event.step;
+      if (isFunctionCallStep(step)) {
+        handlers.onFunctionCall({
+          id: step.id,
+          name: step.name,
+          arguments:
+            step.arguments && typeof step.arguments === "object"
+              ? step.arguments
+              : {},
+        });
+      }
+    }
   }
 
   private mapResponse(interaction: InteractionLike): LlmResponse {
     const interactionId = interaction.id;
     if (!interactionId) {
-      throw new ServiceUnavailableException(
-        AI_ERROR_MESSAGES.MALFORMED_RESPONSE,
-      );
+      throw new GeminiApiError(AI_ERROR_MESSAGES.MALFORMED_RESPONSE);
     }
 
     const functionCalls: LlmFunctionCall[] = [];
     for (const step of interaction.steps ?? []) {
-      if (step.type === "function_call" && step.name && step.id) {
+      if (isFunctionCallStep(step)) {
         functionCalls.push({
           id: step.id,
           name: step.name,
@@ -272,9 +340,17 @@ export class GeminiProvider implements LlmProvider {
   private extractTextFromSteps(steps: InteractionStep[]): string | null {
     const parts: string[] = [];
     for (const step of steps) {
-      if (step.type === "function_call") continue;
-      for (const block of step.content ?? []) {
-        if (block.type === "text" && block.text) {
+      if (isFunctionCallStep(step)) continue;
+      if (!("content" in step) || !Array.isArray(step.content)) continue;
+      for (const block of step.content) {
+        if (
+          block &&
+          typeof block === "object" &&
+          "type" in block &&
+          block.type === GEMINI_DELTA_TYPE.TEXT &&
+          "text" in block &&
+          typeof block.text === "string"
+        ) {
           parts.push(block.text);
         }
       }
@@ -283,38 +359,49 @@ export class GeminiProvider implements LlmProvider {
     return joined.length > 0 ? joined : null;
   }
 
-  private mapError(error: unknown): Error {
-    const message =
-      error instanceof Error ? error.message.toLowerCase() : String(error);
-
-    this.logger.error(`Gemini request failed: ${message}`);
-
-    if (message.includes("timeout")) {
-      return new ServiceUnavailableException(AI_ERROR_MESSAGES.TIMEOUT);
-    }
-    if (message.includes("429") || message.includes("rate")) {
-      return new BadRequestException(AI_ERROR_MESSAGES.GEMINI_RATE_LIMIT);
-    }
-    if (message.includes("quota") || message.includes("resource_exhausted")) {
-      return new BadRequestException(AI_ERROR_MESSAGES.GEMINI_QUOTA);
-    }
+  private toProviderError(error: unknown): Error {
     if (
-      error instanceof BadRequestException ||
-      error instanceof ServiceUnavailableException
+      error instanceof ServiceUnavailableException ||
+      error instanceof GeminiApiError
     ) {
       return error;
     }
-    return new ServiceUnavailableException(
-      AI_ERROR_MESSAGES.GEMINI_UNAVAILABLE,
-    );
+    const message = error instanceof Error ? error.message : String(error);
+    this.logger.error(`Gemini request failed: ${message}`);
+    return new GeminiApiError(message, error);
   }
 }
 
-/** Soft timeout wrapper so hung Gemini calls fail with a clear error. */
+function isFunctionCallStep(
+  step: InteractionStep,
+): step is Interactions.FunctionCallStep {
+  return step.type === GEMINI_STEP_TYPE.FUNCTION_CALL;
+}
+
+/** Map our tool declarations onto the SDK Function tool shape without a blanket cast. */
+function toGeminiTool(tool: LlmToolDeclaration): Interactions.Tool {
+  return {
+    type: "function",
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+  };
+}
+
+function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Symbol.asyncIterator in value &&
+    typeof Reflect.get(value, Symbol.asyncIterator) === "function"
+  );
+}
+
+/** Soft timeout so hung Gemini calls fail with a clear error. */
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error("timeout"));
+      reject(new GeminiApiError("timeout"));
     }, timeoutMs);
 
     promise
@@ -324,7 +411,27 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
       })
       .catch((error: unknown) => {
         clearTimeout(timer);
-        reject(error instanceof Error ? error : new Error(String(error)));
+        reject(
+          error instanceof Error ? error : new GeminiApiError(String(error)),
+        );
       });
   });
+}
+
+/**
+ * Idle timeout between stream chunks — covers hangs after the stream starts,
+ * not only the initial create() handshake.
+ */
+async function* withIdleTimeout<T>(
+  source: AsyncIterable<T>,
+  timeoutMs: number,
+): AsyncGenerator<T> {
+  const iterator = source[Symbol.asyncIterator]();
+  for (;;) {
+    const next = await withTimeout(iterator.next(), timeoutMs);
+    if (next.done) {
+      return;
+    }
+    yield next.value;
+  }
 }
