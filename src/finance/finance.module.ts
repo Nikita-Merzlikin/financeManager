@@ -1,9 +1,10 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { SequelizeModule } from "@nestjs/sequelize";
 import { Account } from "src/db/dbModels/Account";
 import { BankConnection } from "src/db/dbModels/BankConnection";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
+import { FinancialPlanModule } from "src/financial-plan/financial-plan.module";
 import { AccountsService } from "./accounts.service";
 import { BankFactory } from "./banks/bank.factory";
 import { MonobankBank } from "./banks/monobank.bank";
@@ -25,6 +26,7 @@ import { WebhooksController } from "./webhooks.controller";
       Category,
       BankConnection,
     ]),
+    forwardRef(() => FinancialPlanModule),
   ],
   controllers: [FinanceController, WebhooksController],
   providers: [
@@ -43,7 +45,7 @@ import { WebhooksController } from "./webhooks.controller";
     DashboardService,
     AccountsService,
     TransactionsService,
-    CategoriesService, // needed by AiModule tools
+    CategoriesService,
   ],
 })
 export class FinanceModule {}

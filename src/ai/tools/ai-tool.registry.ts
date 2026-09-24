@@ -7,10 +7,13 @@ import type {
 } from "src/core/types/ai.types";
 import type { AiTool } from "./ai-tool.interface";
 import { toToolDeclaration } from "./ai-tool.interface";
+import { AnalyzeFinancialPlanTool } from "./analyze-financial-plan.tool";
 import { CreateTransactionTool } from "./create-transaction.tool";
 import { GetBalanceTool } from "./get-balance.tool";
 import { GetCategoriesTool } from "./get-categories.tool";
 import { GetDashboardTool } from "./get-dashboard.tool";
+import { GetFinancialPlanTool } from "./get-financial-plan.tool";
+import { GetPlanForecastTool } from "./get-plan-forecast.tool";
 import { GetTransactionsTool } from "./get-transactions.tool";
 
 /** Whitelist registry of AI tools backed by finance domain services. */
@@ -24,6 +27,9 @@ export class AiToolRegistry {
     getTransactionsTool: GetTransactionsTool,
     getDashboardTool: GetDashboardTool,
     createTransactionTool: CreateTransactionTool,
+    getFinancialPlanTool: GetFinancialPlanTool,
+    getPlanForecastTool: GetPlanForecastTool,
+    analyzeFinancialPlanTool: AnalyzeFinancialPlanTool,
   ) {
     const list: AiTool[] = [
       getBalanceTool,
@@ -31,6 +37,9 @@ export class AiToolRegistry {
       getTransactionsTool,
       getDashboardTool,
       createTransactionTool,
+      getFinancialPlanTool,
+      getPlanForecastTool,
+      analyzeFinancialPlanTool,
     ];
     this.tools = new Map(list.map((tool) => [tool.name, tool]));
   }
