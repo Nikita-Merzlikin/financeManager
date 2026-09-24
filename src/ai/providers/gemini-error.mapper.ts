@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { AI_ERROR_MESSAGES } from "src/core/constants/ai-errors.constants";
 import { GeminiApiError } from "./gemini-api.error";
+import { GEMINI_ERROR_MARKERS } from "./gemini.constants";
 
 /**
  * Maps Gemini / network failures to Nest HTTP exceptions.
@@ -23,19 +24,28 @@ export function mapGeminiError(error: unknown): HttpException {
         : String(error);
   const message = raw.toLowerCase();
 
-  if (message.includes("timeout")) {
+  if (message.includes(GEMINI_ERROR_MARKERS.TIMEOUT)) {
     return new ServiceUnavailableException(AI_ERROR_MESSAGES.TIMEOUT);
   }
-  if (message.includes("429") || message.includes("rate")) {
+  if (
+    message.includes(GEMINI_ERROR_MARKERS.RATE_LIMIT_STATUS) ||
+    message.includes(GEMINI_ERROR_MARKERS.RATE)
+  ) {
     return new HttpException(
       AI_ERROR_MESSAGES.GEMINI_RATE_LIMIT,
       HttpStatus.TOO_MANY_REQUESTS,
     );
   }
-  if (message.includes("quota") || message.includes("resource_exhausted")) {
+  if (
+    message.includes(GEMINI_ERROR_MARKERS.QUOTA) ||
+    message.includes(GEMINI_ERROR_MARKERS.RESOURCE_EXHAUSTED)
+  ) {
     return new ServiceUnavailableException(AI_ERROR_MESSAGES.GEMINI_QUOTA);
   }
-  if (message.includes("api key") || message.includes("api_key")) {
+  if (
+    message.includes(GEMINI_ERROR_MARKERS.API_KEY) ||
+    message.includes(GEMINI_ERROR_MARKERS.API_KEY_SNAKE)
+  ) {
     return new ServiceUnavailableException(
       AI_ERROR_MESSAGES.GEMINI_API_KEY_MISSING,
     );

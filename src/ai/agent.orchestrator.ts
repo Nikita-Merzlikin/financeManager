@@ -9,6 +9,10 @@ import {
 import { AI_ERROR_MESSAGES } from "src/core/constants/ai-errors.constants";
 import { LLM_PROVIDER } from "src/core/constants/ai.constants";
 import { AiChatRequestDto, AiChatResponseDto } from "src/core/dto/ai.dto";
+import {
+  AiChatStreamEventType,
+  LlmStreamChunkType,
+} from "src/core/enums/ai.enums";
 import type {
   AiChatStreamEvent,
   LlmFunctionResult,
@@ -43,15 +47,15 @@ export class AgentOrchestrator {
     let toolsUsed: string[] | undefined;
 
     for await (const event of this.chatStream(userId, dto)) {
-      if (event.type === "text_delta") {
+      if (event.type === AiChatStreamEventType.TEXT_DELTA) {
         reply += event.text;
       }
-      if (event.type === "done") {
+      if (event.type === AiChatStreamEventType.DONE) {
         reply = event.reply;
         conversationId = event.conversationId;
         toolsUsed = event.toolsUsed;
       }
-      if (event.type === "error") {
+      if (event.type === AiChatStreamEventType.ERROR) {
         // User/input problems → 400; provider/runtime problems → 503.
         if (
           event.message === AI_ERROR_MESSAGES.MESSAGE_REQUIRED ||
@@ -66,7 +70,7 @@ export class AgentOrchestrator {
     }
 
     return {
-      reply: reply || "I could not produce a response. Please try again.",
+      reply: reply || AI_ERROR_MESSAGES.EMPTY_RESPONSE,
       conversationId,
       toolsUsed,
     };
@@ -80,11 +84,17 @@ export class AgentOrchestrator {
     const config = getAiConfig();
     const message = dto.message.trim();
     if (!message) {
-      yield { type: "error", message: AI_ERROR_MESSAGES.MESSAGE_REQUIRED };
+      yield {
+        type: AiChatStreamEventType.ERROR,
+        message: AI_ERROR_MESSAGES.MESSAGE_REQUIRED,
+      };
       return;
     }
     if (message.length > config.maxInputLength) {
-      yield { type: "error", message: AI_ERROR_MESSAGES.MESSAGE_TOO_LONG };
+      yield {
+        type: AiChatStreamEventType.ERROR,
+        message: AI_ERROR_MESSAGES.MESSAGE_TOO_LONG,
+      };
       return;
     }
 
@@ -94,7 +104,10 @@ export class AgentOrchestrator {
     let functionResults: LlmFunctionResult[] | undefined;
     let pendingUserMessage: string | undefined = message;
 
-    yield { type: "status", message: "Thinking..." };
+    yield {
+      type: AiChatStreamEventType.STATUS,
+      message: "Thinking...",
+    };
 
     try {
       for (
@@ -113,22 +126,27 @@ export class AgentOrchestrator {
         };
 
         let streamedText = "";
-        let finalChunk: Extract<LlmStreamChunk, { type: "final" }> | null =
-          null;
+        let finalChunk: Extract<
+          LlmStreamChunk,
+          { type: LlmStreamChunkType.FINAL }
+        > | null = null;
 
         for await (const chunk of this.iterateLlm(request)) {
-          if (chunk.type === "text_delta") {
+          if (chunk.type === LlmStreamChunkType.TEXT_DELTA) {
             streamedText += chunk.text;
-            yield { type: "text_delta", text: chunk.text };
+            yield {
+              type: AiChatStreamEventType.TEXT_DELTA,
+              text: chunk.text,
+            };
           }
-          if (chunk.type === "final") {
+          if (chunk.type === LlmStreamChunkType.FINAL) {
             finalChunk = chunk;
           }
         }
 
         if (!finalChunk) {
           yield {
-            type: "error",
+            type: AiChatStreamEventType.ERROR,
             message: AI_ERROR_MESSAGES.GEMINI_UNAVAILABLE,
           };
           return;
@@ -141,9 +159,9 @@ export class AgentOrchestrator {
         if (finalChunk.functionCalls.length === 0) {
           const reply =
             (finalChunk.text ?? streamedText).trim() ||
-            "I could not produce a response. Please try again.";
+            AI_ERROR_MESSAGES.EMPTY_RESPONSE;
           yield {
-            type: "done",
+            type: AiChatStreamEventType.DONE,
             reply,
             conversationId: interactionId,
             toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
@@ -153,7 +171,7 @@ export class AgentOrchestrator {
 
         if (iteration === config.maxToolIterations) {
           yield {
-            type: "error",
+            type: AiChatStreamEventType.ERROR,
             message: AI_ERROR_MESSAGES.MAX_TOOL_ITERATIONS,
           };
           return;
@@ -162,7 +180,10 @@ export class AgentOrchestrator {
         const results: LlmFunctionResult[] = [];
         for (const call of finalChunk.functionCalls) {
           toolsUsed.push(call.name);
-          yield { type: "tool_start", name: call.name };
+          yield {
+            type: AiChatStreamEventType.TOOL_START,
+            name: call.name,
+          };
           this.logger.debug(`Executing tool ${call.name} for user ${userId}`);
 
           const result = await this.toolRegistry.execute(
@@ -170,7 +191,11 @@ export class AgentOrchestrator {
             { userId },
             call.arguments,
           );
-          yield { type: "tool_result", name: call.name, result };
+          yield {
+            type: AiChatStreamEventType.TOOL_RESULT,
+            name: call.name,
+            result,
+          };
           results.push({
             name: call.name,
             callId: call.id,
@@ -178,18 +203,21 @@ export class AgentOrchestrator {
           });
         }
         functionResults = results;
-        yield { type: "status", message: "Updating answer..." };
+        yield {
+          type: AiChatStreamEventType.STATUS,
+          message: "Updating answer...",
+        };
       }
 
       yield {
-        type: "error",
+        type: AiChatStreamEventType.ERROR,
         message: AI_ERROR_MESSAGES.MAX_TOOL_ITERATIONS,
       };
     } catch (error) {
       const httpError = mapGeminiError(error);
       const messageText = extractErrorMessage(httpError);
       this.logger.error(`chatStream failed: ${messageText}`);
-      yield { type: "error", message: messageText };
+      yield { type: AiChatStreamEventType.ERROR, message: messageText };
     }
   }
 
@@ -203,10 +231,10 @@ export class AgentOrchestrator {
 
     const response = await this.llm.generate(request);
     if (response.text) {
-      yield { type: "text_delta", text: response.text };
+      yield { type: LlmStreamChunkType.TEXT_DELTA, text: response.text };
     }
     yield {
-      type: "final",
+      type: LlmStreamChunkType.FINAL,
       interactionId: response.interactionId,
       text: response.text,
       functionCalls: response.functionCalls,

@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { GoogleGenAI, Interactions } from "@google/genai";
 import { AI_ERROR_MESSAGES } from "src/core/constants/ai-errors.constants";
+import { LlmStreamChunkType } from "src/core/enums/ai.enums";
 import type {
   LlmFunctionCall,
   LlmProvider,
@@ -17,6 +18,7 @@ import { getAiConfig } from "../ai.config";
 import { GeminiApiError } from "./gemini-api.error";
 import {
   GEMINI_DELTA_TYPE,
+  GEMINI_ERROR_MARKERS,
   GEMINI_INPUT_TYPE,
   GEMINI_SSE_EVENT,
   GEMINI_STEP_TYPE,
@@ -83,10 +85,10 @@ export class GeminiProvider implements LlmProvider {
         // SDK returned a completed interaction instead of a stream.
         const mapped = this.mapResponse(result);
         if (mapped.text) {
-          yield { type: "text_delta", text: mapped.text };
+          yield { type: LlmStreamChunkType.TEXT_DELTA, text: mapped.text };
         }
         yield {
-          type: "final",
+          type: LlmStreamChunkType.FINAL,
           interactionId: mapped.interactionId,
           text: mapped.text,
           functionCalls: mapped.functionCalls,
@@ -127,7 +129,7 @@ export class GeminiProvider implements LlmProvider {
           event.delta.type === GEMINI_DELTA_TYPE.TEXT &&
           event.delta.text
         ) {
-          yield { type: "text_delta", text: event.delta.text };
+          yield { type: LlmStreamChunkType.TEXT_DELTA, text: event.delta.text };
         }
       }
 
@@ -145,7 +147,7 @@ export class GeminiProvider implements LlmProvider {
       }
 
       yield {
-        type: "final",
+        type: LlmStreamChunkType.FINAL,
         interactionId,
         text: text.trim() ? text : null,
         functionCalls,
@@ -160,7 +162,7 @@ export class GeminiProvider implements LlmProvider {
         );
         if (interactionId) {
           yield {
-            type: "final",
+            type: LlmStreamChunkType.FINAL,
             interactionId,
             text: text.trim() ? text : null,
             functionCalls,
@@ -184,10 +186,10 @@ export class GeminiProvider implements LlmProvider {
   ): AsyncGenerator<LlmStreamChunk> {
     const fallback = await this.generate(request);
     if (fallback.text) {
-      yield { type: "text_delta", text: fallback.text };
+      yield { type: LlmStreamChunkType.TEXT_DELTA, text: fallback.text };
     }
     yield {
-      type: "final",
+      type: LlmStreamChunkType.FINAL,
       interactionId: fallback.interactionId,
       text: fallback.text,
       functionCalls: fallback.functionCalls,
@@ -401,7 +403,7 @@ function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new GeminiApiError("timeout"));
+      reject(new GeminiApiError(GEMINI_ERROR_MARKERS.TIMEOUT));
     }, timeoutMs);
 
     promise

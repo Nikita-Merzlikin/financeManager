@@ -19,6 +19,7 @@ import { CurrentUser } from "src/auth/decorators/current-user.decorator";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { ApiCommonHeaders } from "src/core/decorators/api-common-headers.decorator";
 import { AiChatRequestDto, AiChatResponseDto } from "src/core/dto/ai.dto";
+import { AiChatStreamEventType } from "src/core/enums/ai.enums";
 import type { JwtPayload } from "src/core/types/jwt-payload.type";
 import { AiErrorInterceptor } from "./ai-error.interceptor";
 import { AgentOrchestrator } from "./agent.orchestrator";
@@ -75,13 +76,18 @@ export class AiController {
         dto,
       )) {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
-        if (event.type === "done" || event.type === "error") {
+        if (
+          event.type === AiChatStreamEventType.DONE ||
+          event.type === AiChatStreamEventType.ERROR
+        ) {
           break;
         }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Stream failed";
-      res.write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: AiChatStreamEventType.ERROR, message })}\n\n`,
+      );
     } finally {
       res.end();
     }

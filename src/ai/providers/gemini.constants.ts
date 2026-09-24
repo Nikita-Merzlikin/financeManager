@@ -18,3 +18,14 @@ export const GEMINI_INPUT_TYPE = {
   FUNCTION_RESULT: "function_result",
   TEXT: "text",
 } as const;
+
+/** Substrings used to classify raw Gemini/SDK error messages. */
+export const GEMINI_ERROR_MARKERS = {
+  TIMEOUT: "timeout",
+  RATE: "rate",
+  RATE_LIMIT_STATUS: "429",
+  QUOTA: "quota",
+  RESOURCE_EXHAUSTED: "resource_exhausted",
+  API_KEY: "api key",
+  API_KEY_SNAKE: "api_key",
+} as const;

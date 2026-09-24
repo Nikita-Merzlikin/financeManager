@@ -11,4 +11,5 @@ export const AI_ERROR_MESSAGES = {
   MAX_TOOL_ITERATIONS: "AI stopped after reaching the maximum tool iterations",
   TIMEOUT: "AI request timed out",
   MALFORMED_RESPONSE: "AI returned a malformed response",
+  EMPTY_RESPONSE: "I could not produce a response. Please try again.",
 } as const;

@@ -1,5 +1,7 @@
 /** Shared AI/LLM types used by the orchestrator and providers. */
 
+import { AiChatStreamEventType, LlmStreamChunkType } from "../enums/ai.enums";
+
 export type LlmToolParameterSchema = {
   type: "object";
   properties: Record<string, Record<string, unknown>>;
@@ -43,9 +45,9 @@ export type LlmResponse = {
 
 /** Streaming chunks from the LLM provider (text deltas and/or final frame). */
 export type LlmStreamChunk =
-  | { type: "text_delta"; text: string }
+  | { type: LlmStreamChunkType.TEXT_DELTA; text: string }
   | {
-      type: "final";
+      type: LlmStreamChunkType.FINAL;
       interactionId: string;
       text: string | null;
       functionCalls: LlmFunctionCall[];
@@ -69,14 +71,18 @@ export type AiToolResult = {
 
 /** SSE events emitted by the streaming chat endpoint. */
 export type AiChatStreamEvent =
-  | { type: "status"; message: string }
-  | { type: "tool_start"; name: string }
-  | { type: "tool_result"; name: string; result: AiToolResult }
-  | { type: "text_delta"; text: string }
+  | { type: AiChatStreamEventType.STATUS; message: string }
+  | { type: AiChatStreamEventType.TOOL_START; name: string }
   | {
-      type: "done";
+      type: AiChatStreamEventType.TOOL_RESULT;
+      name: string;
+      result: AiToolResult;
+    }
+  | { type: AiChatStreamEventType.TEXT_DELTA; text: string }
+  | {
+      type: AiChatStreamEventType.DONE;
       reply: string;
       conversationId: string;
       toolsUsed?: string[];
     }
-  | { type: "error"; message: string };
+  | { type: AiChatStreamEventType.ERROR; message: string };

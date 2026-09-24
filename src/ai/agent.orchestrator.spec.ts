@@ -1,4 +1,8 @@
 import { AgentOrchestrator } from "./agent.orchestrator";
+import {
+  AiChatStreamEventType,
+  LlmStreamChunkType,
+} from "src/core/enums/ai.enums";
 import type {
   AiChatStreamEvent,
   LlmProvider,
@@ -231,10 +235,10 @@ describe("AgentOrchestrator", () => {
       }),
       generateStream: jest.fn().mockImplementation(async function* () {
         await Promise.resolve();
-        yield { type: "text_delta", text: "Hel" };
-        yield { type: "text_delta", text: "lo" };
+        yield { type: LlmStreamChunkType.TEXT_DELTA, text: "Hel" };
+        yield { type: LlmStreamChunkType.TEXT_DELTA, text: "lo" };
         yield {
-          type: "final",
+          type: LlmStreamChunkType.FINAL,
           interactionId: "i-stream",
           text: "Hello",
           functionCalls: [],
@@ -254,11 +258,20 @@ describe("AgentOrchestrator", () => {
       events.push(event);
     }
 
-    expect(events[0]).toEqual({ type: "status", message: "Thinking..." });
-    expect(events).toContainEqual({ type: "text_delta", text: "Hel" });
-    expect(events).toContainEqual({ type: "text_delta", text: "lo" });
+    expect(events[0]).toEqual({
+      type: AiChatStreamEventType.STATUS,
+      message: "Thinking...",
+    });
+    expect(events).toContainEqual({
+      type: AiChatStreamEventType.TEXT_DELTA,
+      text: "Hel",
+    });
+    expect(events).toContainEqual({
+      type: AiChatStreamEventType.TEXT_DELTA,
+      text: "lo",
+    });
     expect(events[events.length - 1]).toEqual({
-      type: "done",
+      type: AiChatStreamEventType.DONE,
       reply: "Hello",
       conversationId: "i-stream",
       toolsUsed: undefined,
