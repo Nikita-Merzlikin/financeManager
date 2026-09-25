@@ -2,6 +2,7 @@ import {
   FinancialPlanDataStatus,
   FinancialPlanTrackStatus,
 } from "src/core/enums/financial-plan.enums";
+import { toMinorUnits } from "src/finance/finance.utils";
 import { calculateForecast } from "./forecast.calculator";
 
 describe("forecast.calculator", () => {
@@ -9,10 +10,10 @@ describe("forecast.calculator", () => {
     daysTotal: 30,
     plannedSpendToDateMinor: 3000n,
     actualSpendToDateMinor: 3000n,
-    plannedSavingsMonthlyMinor: 5000_00n,
-    actualSavingsToDateMinor: 2000_00n,
-    targetAmountMinor: 100_000_00n,
-    accumulatedMinor: 10_000_00n,
+    plannedSavingsMonthlyMinor: toMinorUnits(5_000),
+    actualSavingsToDateMinor: toMinorUnits(2_000),
+    targetAmountMinor: toMinorUnits(100_000),
+    accumulatedMinor: toMinorUnits(10_000),
     asOf: new Date("2026-09-15T00:00:00.000Z"),
     targetDate: new Date("2027-03-01T00:00:00.000Z"),
   };
@@ -59,9 +60,9 @@ describe("forecast.calculator", () => {
       daysElapsed: 15,
       plannedSpendToDateMinor: 3000n,
       actualSpendToDateMinor: 3000n,
-      actualSavingsToDateMinor: 50_000_00n,
-      accumulatedMinor: 80_000_00n,
-      targetAmountMinor: 100_000_00n,
+      actualSavingsToDateMinor: toMinorUnits(50_000),
+      accumulatedMinor: toMinorUnits(80_000),
+      targetAmountMinor: toMinorUnits(100_000),
       hasEnoughHistory: true,
     });
     expect(result.trackStatus).toBe(FinancialPlanTrackStatus.ON_TRACK);

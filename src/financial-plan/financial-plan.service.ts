@@ -10,6 +10,7 @@ import {
   FINANCIAL_PLAN_BASELINE_LOOKBACK_DAYS,
   FINANCIAL_PLAN_MAX_CATEGORIES,
   FINANCIAL_PLAN_MIN_HISTORY_DAYS,
+  MS_PER_DAY,
 } from "src/core/constants/financial-plan.constants";
 import { FINANCIAL_PLAN_ERROR_MESSAGES } from "src/core/constants/financial-plan-errors.constants";
 import {
@@ -28,7 +29,6 @@ import {
   TransactionType,
 } from "src/core/enums/finance.enums";
 import {
-  FinancialPlanFrequency,
   FinancialPlanStatus,
 } from "src/core/enums/financial-plan.enums";
 import { Account } from "src/db/dbModels/Account";
@@ -53,11 +53,15 @@ import {
   calculateBudgetBreakdown,
   calculateCategoryVariance,
   calculatePlanProgress,
-  daysInMonth,
   eachDateInclusive,
   parseDateKey,
   toDateKey,
 } from "./calculators/financial-plan.calculator";
+import {
+  groupDaysByFrequency,
+  toFinancialPlanCategoryResponse,
+  toFinancialPlanDayResponse,
+} from "./financial-plan.presenter";
 
 @Injectable()
 export class FinancialPlanService {
@@ -285,13 +289,13 @@ export class FinancialPlanService {
   async getCalendar(userId: string): Promise<FinancialPlanDayResponseDto[]> {
     const plan = await this.findActivePlan(userId);
     const days = await this.loadRedistributedDays(plan);
-    return days.map((d) => this.toDayDto(d));
+    return days.map((day) => toFinancialPlanDayResponse(day));
   }
 
   async getPeriods(userId: string): Promise<FinancialPlanPeriodResponseDto[]> {
     const plan = await this.findActivePlan(userId);
     const days = await this.loadRedistributedDays(plan);
-    return this.groupDaysByFrequency(days, plan.frequency, plan.startDate);
+    return groupDaysByFrequency(days, plan.frequency, plan.startDate);
   }
 
   async getCategories(
@@ -373,7 +377,7 @@ export class FinancialPlanService {
     const historyDays = Math.max(
       1,
       Math.floor(
-        (start.getTime() - lookbackStart.getTime()) / (24 * 60 * 60 * 1000),
+        (start.getTime() - lookbackStart.getTime()) / MS_PER_DAY,
       ),
     );
     const historicalTotal = historicalTx.reduce(
@@ -400,7 +404,7 @@ export class FinancialPlanService {
     );
     const planDays = Math.max(
       1,
-      Math.floor((Date.now() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+      Math.floor((Date.now() - start.getTime()) / MS_PER_DAY) + 1,
     );
 
     const result = calculateBaselineSavings({
@@ -799,106 +803,16 @@ export class FinancialPlanService {
       );
     }
 
-    return rows.map((row) => {
-      const variance = calculateCategoryVariance({
-        categoryId: row.categoryId,
-        name: row.category?.name ?? "Unknown",
-        limitMinor: parseMinorUnits(row.limitAmount),
-        isMandatory: row.isMandatory,
-        actualMinor: spendByCategory.get(row.categoryId) ?? 0n,
-      });
-      return {
-        categoryId: variance.categoryId,
-        name: variance.name,
-        limit:
-          variance.limitMinor === null
-            ? null
-            : fromMinorUnits(variance.limitMinor),
-        actual: fromMinorUnits(variance.actualMinor),
-        remaining:
-          variance.remainingMinor === null
-            ? null
-            : fromMinorUnits(variance.remainingMinor),
-        percentageUsed: variance.percentageUsed,
-        variance:
-          variance.varianceMinor === null
-            ? null
-            : fromMinorUnits(variance.varianceMinor),
-        status: variance.status,
-        isMandatory: variance.isMandatory,
-      };
-    });
-  }
-
-  private groupDaysByFrequency(
-    days: Awaited<ReturnType<FinancialPlanService["loadRedistributedDays"]>>,
-    frequency: FinancialPlanFrequency,
-    startDate: string,
-  ): FinancialPlanPeriodResponseDto[] {
-    if (days.length === 0) return [];
-
-    const periods: FinancialPlanPeriodResponseDto[] = [];
-    let bucket: typeof days = [];
-
-    const flush = () => {
-      if (bucket.length === 0) return;
-      const agg = aggregatePeriod(bucket);
-      periods.push({
-        from: bucket[0].date,
-        to: bucket[bucket.length - 1].date,
-        planned: fromMinorUnits(agg.plannedMinor),
-        actual: fromMinorUnits(agg.actualMinor),
-        remaining: fromMinorUnits(agg.remainingMinor),
-        saved: fromMinorUnits(agg.savedMinor),
-        variance: fromMinorUnits(agg.varianceMinor),
-        status: agg.status,
-      });
-      bucket = [];
-    };
-
-    const size = periodDaySize(frequency, startDate);
-
-    for (const day of days) {
-      bucket.push(day);
-      if (bucket.length >= size) flush();
-    }
-    flush();
-    return periods;
-  }
-
-  private toDayDto(
-    day: Awaited<
-      ReturnType<FinancialPlanService["loadRedistributedDays"]>
-    >[number],
-  ): FinancialPlanDayResponseDto {
-    return {
-      date: day.date,
-      planned: fromMinorUnits(day.plannedMinor),
-      actual: fromMinorUnits(day.actualMinor),
-      remaining: fromMinorUnits(day.remainingMinor),
-      variance: fromMinorUnits(day.varianceMinor),
-      status: day.status,
-      locked: day.locked,
-    };
-  }
-}
-
-function periodDaySize(
-  frequency: FinancialPlanFrequency,
-  startDate: string,
-): number {
-  switch (frequency) {
-    case FinancialPlanFrequency.DAILY:
-      return 1;
-    case FinancialPlanFrequency.TWICE_A_WEEK:
-      return 3;
-    case FinancialPlanFrequency.WEEKLY:
-      return 7;
-    case FinancialPlanFrequency.TWICE_A_MONTH:
-      return 15;
-    case FinancialPlanFrequency.MONTHLY:
-      return daysInMonth(parseDateKey(startDate));
-    default:
-      return 1;
+    return rows.map((row) =>
+      toFinancialPlanCategoryResponse(
+        calculateCategoryVariance({
+          categoryId: row.categoryId,
+          name: row.category?.name ?? "Unknown",
+          limitMinor: parseMinorUnits(row.limitAmount),
+          isMandatory: row.isMandatory,
+          actualMinor: spendByCategory.get(row.categoryId) ?? 0n,
+        }),
+      ),
+    );
   }
 }

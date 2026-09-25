@@ -1,4 +1,8 @@
 import {
+  FINANCIAL_PLAN_AHEAD_SPEND_RATIO,
+  FINANCIAL_PLAN_ON_TRACK_SPEND_RATIO,
+} from "src/core/constants/financial-plan.constants";
+import {
   FinancialPlanDataStatus,
   FinancialPlanTrackStatus,
 } from "src/core/enums/financial-plan.enums";
@@ -68,10 +72,10 @@ export function calculateForecast(input: ForecastInput): ForecastResult {
 
   let trackStatus: FinancialPlanTrackStatus;
   let onTrack: boolean;
-  if (spendRatio < 0.95) {
+  if (spendRatio < FINANCIAL_PLAN_AHEAD_SPEND_RATIO) {
     trackStatus = FinancialPlanTrackStatus.AHEAD;
     onTrack = true;
-  } else if (spendRatio <= 1.05) {
+  } else if (spendRatio <= FINANCIAL_PLAN_ON_TRACK_SPEND_RATIO) {
     trackStatus = FinancialPlanTrackStatus.ON_TRACK;
     onTrack = true;
   } else {

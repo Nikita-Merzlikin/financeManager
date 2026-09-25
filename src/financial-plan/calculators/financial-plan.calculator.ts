@@ -1,10 +1,10 @@
 import {
   FINANCIAL_PLAN_DAYS_IN_WEEK,
   FINANCIAL_PLAN_FALLBACK_DAYS_IN_MONTH,
+  FINANCIAL_PLAN_PERCENT_SCALE,
 } from "src/core/constants/financial-plan.constants";
 import {
   FinancialPlanCategoryStatus,
-  FinancialPlanFrequency,
   FinancialPlanPeriodStatus,
 } from "src/core/enums/financial-plan.enums";
 import type {
@@ -16,9 +16,11 @@ import type {
   PlanProgressResult,
 } from "src/core/types/financial-plan.types";
 
-/** Calendar days in the month of `date`. */
+/** Calendar days in the UTC month of `date` (aligned with toDateKey). */
 export function daysInMonth(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
 }
 
 /** Whole months remaining until target date (minimum 1 to avoid division by zero). */
@@ -142,7 +144,9 @@ export function calculateCategoryVariance(
       ? input.actualMinor > 0n
         ? 100
         : 0
-      : Number((input.actualMinor * 10000n) / input.limitMinor) / 100;
+      : Number(
+          (input.actualMinor * FINANCIAL_PLAN_PERCENT_SCALE) / input.limitMinor,
+        ) / 100;
 
   let status: FinancialPlanCategoryStatus;
   if (input.actualMinor > input.limitMinor) {
@@ -175,8 +179,10 @@ export function calculatePlanProgress(
       ? 100
       : Math.min(
           100,
-          Number((input.accumulatedMinor * 10000n) / input.targetAmountMinor) /
-            100,
+          Number(
+            (input.accumulatedMinor * FINANCIAL_PLAN_PERCENT_SCALE) /
+              input.targetAmountMinor,
+          ) / 100,
         );
 
   let projectedCompletionDate: string | null = null;
@@ -198,27 +204,6 @@ export function calculatePlanProgress(
     percentageComplete,
     projectedCompletionDate,
   };
-}
-
-/** Map a monthly amount into a presentation-period amount by frequency. */
-export function monthlyToPeriodAmount(
-  monthlyMinor: bigint,
-  frequency: FinancialPlanFrequency,
-  daysInPeriodMonth: number,
-): bigint {
-  switch (frequency) {
-    case FinancialPlanFrequency.DAILY:
-      return monthlyMinor / BigInt(Math.max(1, daysInPeriodMonth));
-    case FinancialPlanFrequency.TWICE_A_WEEK:
-      return (monthlyMinor * 7n) / (BigInt(daysInPeriodMonth) * 2n);
-    case FinancialPlanFrequency.WEEKLY:
-      return (monthlyMinor * 7n) / BigInt(Math.max(1, daysInPeriodMonth));
-    case FinancialPlanFrequency.TWICE_A_MONTH:
-      return monthlyMinor / 2n;
-    case FinancialPlanFrequency.MONTHLY:
-    default:
-      return monthlyMinor;
-  }
 }
 
 function max0(value: bigint): bigint {

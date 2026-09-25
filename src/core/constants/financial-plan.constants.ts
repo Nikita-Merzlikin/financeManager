@@ -1,5 +1,3 @@
-import { FinancialPlanFrequency } from "src/core/enums/financial-plan.enums";
-
 /** Business constants for Financial Plan calculations. */
 
 export const FINANCIAL_PLAN_DAYS_IN_WEEK = 7;
@@ -16,16 +14,13 @@ export const FINANCIAL_PLAN_BASELINE_LOOKBACK_DAYS = 90;
 /** Soft cap on category limit rows per plan. */
 export const FINANCIAL_PLAN_MAX_CATEGORIES = 50;
 
-/** Equality tolerance in minor units when classifying on-budget / on-limit. */
-export const FINANCIAL_PLAN_BUDGET_EQUALITY_TOLERANCE_MINOR = 0n;
+/** Spend ratio below this → ahead of plan. */
+export const FINANCIAL_PLAN_AHEAD_SPEND_RATIO = 0.95;
 
-export const FINANCIAL_PLAN_FREQUENCIES_PER_MONTH: Record<
-  FinancialPlanFrequency,
-  number
-> = {
-  [FinancialPlanFrequency.DAILY]: FINANCIAL_PLAN_FALLBACK_DAYS_IN_MONTH,
-  [FinancialPlanFrequency.TWICE_A_WEEK]: 8,
-  [FinancialPlanFrequency.WEEKLY]: 4,
-  [FinancialPlanFrequency.TWICE_A_MONTH]: 2,
-  [FinancialPlanFrequency.MONTHLY]: 1,
-};
+/** Spend ratio up to this (inclusive) → on track. */
+export const FINANCIAL_PLAN_ON_TRACK_SPEND_RATIO = 1.05;
+
+export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Fixed-point scale for percentage with 2 decimal places (xx.yy%). */
+export const FINANCIAL_PLAN_PERCENT_SCALE = 10000n;

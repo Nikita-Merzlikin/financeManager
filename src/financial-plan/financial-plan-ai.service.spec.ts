@@ -1,5 +1,5 @@
 import { FinancialPlanRecommendationType } from "src/core/enums/financial-plan.enums";
-import { parseAiRecommendationPayload } from "./financial-plan-ai.service";
+import { parseAiRecommendationPayload } from "./financial-plan-ai.parser";
 
 describe("parseAiRecommendationPayload", () => {
   it("parses a valid structured recommendation", () => {
@@ -53,7 +53,7 @@ describe("parseAiRecommendationPayload", () => {
 
   it("accepts fenced JSON from the model", () => {
     const text = `\`\`\`json
-{"recommendations":[{"type":"plan_at_risk","reason":"Behind goal"}]}
+{"recommendations":[{"type":"${FinancialPlanRecommendationType.PLAN_AT_RISK}","reason":"Behind goal"}]}
 \`\`\``;
     const payload = parseAiRecommendationPayload(text);
     expect(payload?.recommendations[0].type).toBe(
