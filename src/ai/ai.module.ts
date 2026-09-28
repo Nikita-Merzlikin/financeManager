@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { FinanceModule } from "src/finance/finance.module";
 import { FinancialPlanModule } from "src/financial-plan/financial-plan.module";
 import { LLM_PROVIDER } from "src/core/constants/ai.constants";
@@ -18,7 +18,7 @@ import { AnalyzeFinancialPlanTool } from "./tools/analyze-financial-plan.tool";
 
 /** Finance AI agent: chat endpoint + Gemini provider + whitelist tools. */
 @Module({
-  imports: [FinanceModule, forwardRef(() => FinancialPlanModule)],
+  imports: [FinanceModule, FinancialPlanModule],
   controllers: [AiController],
   providers: [
     AiErrorInterceptor,

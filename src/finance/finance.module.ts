@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { SequelizeModule } from "@nestjs/sequelize";
 import { Account } from "src/db/dbModels/Account";
 import { BankConnection } from "src/db/dbModels/BankConnection";
@@ -26,7 +26,7 @@ import { WebhooksController } from "./webhooks.controller";
       Category,
       BankConnection,
     ]),
-    forwardRef(() => FinancialPlanModule),
+    FinancialPlanModule,
   ],
   controllers: [FinanceController, WebhooksController],
   providers: [

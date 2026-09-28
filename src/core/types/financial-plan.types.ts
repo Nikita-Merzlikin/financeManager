@@ -1,12 +1,12 @@
+import type { InferAttributes } from "sequelize";
 import type {
   FinancialPlanCategoryStatus,
   FinancialPlanDataStatus,
-  FinancialPlanFrequency,
   FinancialPlanPeriodStatus,
   FinancialPlanRecommendationType,
-  FinancialPlanStatus,
   FinancialPlanTrackStatus,
 } from "src/core/enums/financial-plan.enums";
+import type { FinancialPlan } from "src/db/dbModels/FinancialPlan";
 
 /** Input for core budget math (all amounts in minor units). */
 export type FinancialPlanBudgetInput = {
@@ -149,20 +149,5 @@ export type FinancialPlanAiRecommendationPayload = {
   }>;
 };
 
-export type StoredFinancialPlanShape = {
-  id: string;
-  userId: string;
-  status: FinancialPlanStatus;
-  incomeMinor: string;
-  averageExpensesMinor: string;
-  mandatoryExpensesMinor: string;
-  desiredSavingsMinor: string;
-  goal: string;
-  targetAmountMinor: string;
-  targetDate: Date;
-  frequency: FinancialPlanFrequency;
-  currency: string;
-  startDate: Date;
-  createdAt: Date;
-  updatedAt: Date;
-};
+/** Row shape for the FinancialPlans table — derived from the Sequelize model. */
+export type StoredFinancialPlanShape = InferAttributes<FinancialPlan>;

@@ -1,10 +1,7 @@
 import {
   BadRequestException,
-  Inject,
   Injectable,
   NotFoundException,
-  Optional,
-  forwardRef,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { Op } from "sequelize";
@@ -36,9 +33,7 @@ export class TransactionsService {
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
     private readonly accountsService: AccountsService,
-    @Optional()
-    @Inject(forwardRef(() => FinancialPlanService))
-    private readonly financialPlanService?: FinancialPlanService,
+    private readonly financialPlanService: FinancialPlanService,
   ) {}
 
   toDto(tx: Transaction): TransactionDto {
@@ -170,7 +165,6 @@ export class TransactionsService {
   }
 
   private async refreshPlan(userId: string): Promise<void> {
-    if (!this.financialPlanService) return;
     await this.financialPlanService.recalculateForUser(userId);
   }
 
