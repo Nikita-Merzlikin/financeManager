@@ -9,6 +9,19 @@ dotenv.config();
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const corsOrigins = (
+    process.env.CORS_ORIGIN ||
+    "http://localhost:5173,http://localhost:3001,http://127.0.0.1:5173"
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+  });
+
   const config = new DocumentBuilder()
     .setTitle("Finance Manager")
     .setDescription("Finance Manager API")
@@ -36,4 +49,4 @@ async function bootstrap() {
   );
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+void bootstrap();

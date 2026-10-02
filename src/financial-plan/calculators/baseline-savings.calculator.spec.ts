@@ -32,7 +32,9 @@ describe("baseline-savings.calculator", () => {
       BigInt(planPeriodDays);
 
     expect(result.dataStatus).toBe(FinancialPlanDataStatus.OK);
-    expect(result.projectedMonthlyExpensesUnderPlanMinor).toBe(projectedMonthly);
+    expect(result.projectedMonthlyExpensesUnderPlanMinor).toBe(
+      projectedMonthly,
+    );
     expect(result.savedVersusBaselineMinor).toBe(
       historicalMonthly - projectedMonthly,
     );

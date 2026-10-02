@@ -17,10 +17,7 @@ import {
 } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Transaction } from "src/db/dbModels/Transaction";
-import {
-  formatMinorUnits,
-  toMinorUnits,
-} from "./finance.utils";
+import { formatMinorUnits, toMinorUnits } from "./finance.utils";
 
 @Injectable()
 export class AccountsService {
@@ -72,7 +69,10 @@ export class AccountsService {
     return account.toDto();
   }
 
-  async remove(userId: string, accountId: string): Promise<{ message: string }> {
+  async remove(
+    userId: string,
+    accountId: string,
+  ): Promise<{ message: string }> {
     const account = await this.findOwned(userId, accountId);
     if (account.source !== AccountSource.MANUAL) {
       throw new ForbiddenException(

@@ -28,9 +28,7 @@ import {
   DEFAULT_CURRENCY,
   TransactionType,
 } from "src/core/enums/finance.enums";
-import {
-  FinancialPlanStatus,
-} from "src/core/enums/financial-plan.enums";
+import { FinancialPlanStatus } from "src/core/enums/financial-plan.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
 import { FinancialPlan } from "src/db/dbModels/FinancialPlan";
@@ -376,9 +374,7 @@ export class FinancialPlanService {
 
     const historyDays = Math.max(
       1,
-      Math.floor(
-        (start.getTime() - lookbackStart.getTime()) / MS_PER_DAY,
-      ),
+      Math.floor((start.getTime() - lookbackStart.getTime()) / MS_PER_DAY),
     );
     const historicalTotal = historicalTx.reduce(
       (s, tx) => s + parseMinorUnits(tx.amount),

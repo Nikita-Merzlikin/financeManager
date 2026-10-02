@@ -53,7 +53,9 @@ export class IsIbanConstraint implements ValidatorConstraintInterface {
   }
 }
 
-export function IsIban(validationOptions?: ValidationOptions): PropertyDecorator {
+export function IsIban(
+  validationOptions?: ValidationOptions,
+): PropertyDecorator {
   return function (object: object, propertyName: string | symbol) {
     registerDecorator({
       target: object.constructor,

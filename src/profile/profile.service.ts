@@ -117,9 +117,7 @@ export class ProfileService {
     }
 
     if (!ALLOWED_AVATAR_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException(
-        PROFILE_ERROR_MESSAGES.AVATAR_INVALID_TYPE,
-      );
+      throw new BadRequestException(PROFILE_ERROR_MESSAGES.AVATAR_INVALID_TYPE);
     }
 
     if (file.size > MAX_AVATAR_FILE_SIZE) {

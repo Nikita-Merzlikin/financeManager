@@ -31,11 +31,9 @@ export class PrivatClient {
       endDate: end,
     });
 
-    const data = await this.request<{ balances?: PrivatBalanceRow[] } | PrivatBalanceRow[]>(
-      `${PRIVAT_PATHS.BALANCE}?${query.toString()}`,
-      clientId,
-      token,
-    );
+    const data = await this.request<
+      { balances?: PrivatBalanceRow[] } | PrivatBalanceRow[]
+    >(`${PRIVAT_PATHS.BALANCE}?${query.toString()}`, clientId, token);
     if (Array.isArray(data)) return data;
     return data.balances ?? [];
   }
