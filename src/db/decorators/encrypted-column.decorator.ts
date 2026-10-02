@@ -21,7 +21,7 @@ export function EncryptedColumn(
   return (target, propertyKey) => {
     const key = propertyKey.toString();
 
-    Column({
+    const decorate = Column({
       type: DataType.TEXT,
       ...options,
       get(this: Model) {
@@ -31,13 +31,14 @@ export function EncryptedColumn(
       },
       set(this: Model, value: unknown) {
         if (value == null || value === "") {
-          this.setDataValue(key, value as never);
+          this.setDataValue(key, value);
           return;
         }
-        const plain =
-          typeof value === "string" ? value : JSON.stringify(value);
+        const plain = typeof value === "string" ? value : JSON.stringify(value);
         this.setDataValue(key, encryptPlaintext(plain));
       },
-    })(target, propertyKey);
+    }) as PropertyDecorator;
+
+    decorate(target, propertyKey);
   };
 }

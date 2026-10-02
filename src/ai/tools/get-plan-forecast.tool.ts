@@ -17,8 +17,6 @@ export class GetPlanForecastTool implements AiTool {
   constructor(private readonly planService: FinancialPlanService) {}
 
   execute(ctx: AiToolContext): Promise<AiToolResult> {
-    return runFinancialPlanTool(() =>
-      this.planService.getForecast(ctx.userId),
-    );
+    return runFinancialPlanTool(() => this.planService.getForecast(ctx.userId));
   }
 }

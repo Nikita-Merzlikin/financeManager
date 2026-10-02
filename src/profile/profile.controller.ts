@@ -84,7 +84,10 @@ export class ProfileController {
   })
   @ApiConsumes("multipart/form-data")
   @ApiBody({ type: UploadAvatarDto })
-  @ApiOkResponse({ description: "Profile with updated avatar", type: ProfileDto })
+  @ApiOkResponse({
+    description: "Profile with updated avatar",
+    type: ProfileDto,
+  })
   @ApiBadRequestResponse({
     description: "Invalid or oversized avatar file",
   })

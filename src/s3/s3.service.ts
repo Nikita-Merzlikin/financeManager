@@ -40,7 +40,9 @@ export class S3Service {
     const safeFileName = originalFileName
       .replace(/"/g, "")
       .replace(/[^\x20-\x7E]/g, "_");
-    const encodedFileName = encodeURIComponent(originalFileName.replace(/"/g, ""));
+    const encodedFileName = encodeURIComponent(
+      originalFileName.replace(/"/g, ""),
+    );
 
     try {
       await this.client.send(
