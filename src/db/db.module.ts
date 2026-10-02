@@ -7,6 +7,9 @@ import { Account } from "./dbModels/Account";
 import { Transaction } from "./dbModels/Transaction";
 import { Category } from "./dbModels/Category";
 import { BankConnection } from "./dbModels/BankConnection";
+import { FinancialPlan } from "./dbModels/FinancialPlan";
+import { FinancialPlanCategory } from "./dbModels/FinancialPlanCategory";
+import { FinancialPlanDay } from "./dbModels/FinancialPlanDay";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -30,6 +33,9 @@ dotenv.config();
         Transaction,
         Category,
         BankConnection,
+        FinancialPlan,
+        FinancialPlanCategory,
+        FinancialPlanDay,
       ],
     }),
   ],

@@ -15,6 +15,7 @@ import { AccountSource, TransactionType } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
+import { FinancialPlanService } from "src/financial-plan/financial-plan.service";
 import { AccountsService } from "./accounts.service";
 import {
   addMinor,
@@ -32,6 +33,7 @@ export class TransactionsService {
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
     private readonly accountsService: AccountsService,
+    private readonly financialPlanService: FinancialPlanService,
   ) {}
 
   toDto(tx: Transaction): TransactionDto {
@@ -92,6 +94,7 @@ export class TransactionsService {
     });
 
     await this.applyBalanceDelta(account, dto.type, amountMinor);
+    await this.refreshPlan(userId);
     return tx.toDto();
   }
 
@@ -134,6 +137,7 @@ export class TransactionsService {
     });
 
     await this.applyBalanceDelta(account, nextType, nextAmount);
+    await this.refreshPlan(userId);
     return tx.toDto();
   }
 
@@ -156,7 +160,12 @@ export class TransactionsService {
       parseMinorUnits(tx.amount),
     );
     await tx.destroy();
+    await this.refreshPlan(userId);
     return { message: FINANCE_ERROR_MESSAGES.TRANSACTION_DELETED };
+  }
+
+  private async refreshPlan(userId: string): Promise<void> {
+    await this.financialPlanService.recalculateForUser(userId);
   }
 
   private async findOwned(

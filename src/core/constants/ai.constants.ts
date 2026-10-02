@@ -10,6 +10,9 @@ export const AI_TOOL_NAMES = {
   GET_CATEGORIES: "get_categories",
   GET_DASHBOARD: "get_dashboard",
   CREATE_TRANSACTION: "create_transaction",
+  GET_FINANCIAL_PLAN: "get_financial_plan",
+  GET_PLAN_FORECAST: "get_plan_forecast",
+  ANALYZE_FINANCIAL_PLAN: "analyze_financial_plan",
 } as const;
 
 export type AiToolName = (typeof AI_TOOL_NAMES)[keyof typeof AI_TOOL_NAMES];
