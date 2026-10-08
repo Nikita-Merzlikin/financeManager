@@ -1,9 +1,6 @@
 import { applyDecorators } from "@nestjs/common";
 import { ApiHeader } from "@nestjs/swagger";
-import {
-  CurrencyEnum,
-  DEFAULT_CURRENCY,
-} from "src/core/enums/finance.enums";
+import { CurrencyEnum, DEFAULT_CURRENCY } from "src/core/enums/finance.enums";
 import {
   ClientTypeEnum,
   LanguageEnum,

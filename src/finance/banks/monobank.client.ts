@@ -10,10 +10,7 @@ import {
   IsoCurrencyCodeEnum,
 } from "src/core/enums/finance.enums";
 import { MONO_ENDPOINTS } from "./monobank.constants";
-import type {
-  MonoClientInfo,
-  MonoStatementItem,
-} from "./monobank.types";
+import type { MonoClientInfo, MonoStatementItem } from "./monobank.types";
 
 export type {
   MonoAccount,
@@ -51,16 +48,12 @@ export class MonobankClient {
   }
 
   mapCurrency(code: number): string {
-    switch (code) {
-      case IsoCurrencyCodeEnum.UAH:
-        return CurrencyEnum.UAH;
-      case IsoCurrencyCodeEnum.USD:
-        return CurrencyEnum.USD;
-      case IsoCurrencyCodeEnum.EUR:
-        return CurrencyEnum.EUR;
-      default:
-        return String(code);
-    }
+    const byCode: Record<number, CurrencyEnum> = {
+      [IsoCurrencyCodeEnum.UAH]: CurrencyEnum.UAH,
+      [IsoCurrencyCodeEnum.USD]: CurrencyEnum.USD,
+      [IsoCurrencyCodeEnum.EUR]: CurrencyEnum.EUR,
+    };
+    return byCode[code] ?? String(code);
   }
 
   toMinorAmount(minor: number): bigint {

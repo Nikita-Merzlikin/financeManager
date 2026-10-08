@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectModel } from "@nestjs/sequelize";
 import * as bcrypt from "bcrypt";
@@ -118,7 +115,9 @@ export class AuthService {
       },
     );
 
-    const refreshToken = randomBytes(REFRESH_TOKEN_BYTES_LENGTH).toString("hex");
+    const refreshToken = randomBytes(REFRESH_TOKEN_BYTES_LENGTH).toString(
+      "hex",
+    );
     const expiresAt = new Date(Date.now() + this.refreshExpiresMs);
 
     await this.sessionModel.create({

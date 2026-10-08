@@ -31,7 +31,11 @@ export class CreateAccountDto {
   @IsEnum(AccountType)
   type?: AccountType;
 
-  @ApiPropertyOptional({ example: DEFAULT_CURRENCY, default: DEFAULT_CURRENCY, enum: CurrencyEnum })
+  @ApiPropertyOptional({
+    example: DEFAULT_CURRENCY,
+    default: DEFAULT_CURRENCY,
+    enum: CurrencyEnum,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(3)
