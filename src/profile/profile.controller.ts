@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Patch,
   UploadedFile,
@@ -106,5 +107,23 @@ export class ProfileController {
     @UploadedFile() file: Express.Multer.File,
   ): Promise<ProfileDto> {
     return this.profileService.uploadAvatar(user.sub, file);
+  }
+
+  @Delete("avatar")
+  @ApiOperation({
+    summary: "Delete avatar",
+    description:
+      "Removes the authenticated user's avatar from S3 and clears the profile avatar field.",
+  })
+  @ApiOkResponse({
+    description: "Profile with avatar cleared",
+    type: ProfileDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: "Missing or invalid access token",
+  })
+  @ApiNotFoundResponse({ description: "Profile not found" })
+  deleteAvatar(@CurrentUser() user: JwtPayload): Promise<ProfileDto> {
+    return this.profileService.deleteAvatar(user.sub);
   }
 }

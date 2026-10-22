@@ -2,14 +2,11 @@ import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { Op } from "sequelize";
 import { DashboardDto } from "src/core/dto/finance.dto";
-import {
-  AccountType,
-  DEFAULT_CURRENCY,
-  TransactionType,
-} from "src/core/enums/finance.enums";
+import { AccountType, TransactionType } from "src/core/enums/finance.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
+import { SettingsService } from "src/settings/settings.service";
 import { AccountsService } from "./accounts.service";
 import { CategoriesService } from "./categories.service";
 import {
@@ -30,6 +27,7 @@ export class DashboardService {
     private readonly categoryModel: typeof Category,
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async getDashboard(
@@ -38,6 +36,8 @@ export class DashboardService {
     to?: string,
   ): Promise<DashboardDto> {
     await this.categoriesService.ensureDefaults();
+
+    const currency = await this.settingsService.getPreferredCurrency(userId);
 
     const periodTo = to ? new Date(to) : new Date();
     const periodFrom = from
@@ -49,7 +49,7 @@ export class DashboardService {
         );
 
     const accounts = await this.accountModel.findAll({
-      where: { userId, isActive: true },
+      where: { userId, isActive: true, currency },
     });
 
     const balanceMinor = accounts.reduce(
@@ -63,6 +63,7 @@ export class DashboardService {
     const transactions = await this.transactionModel.findAll({
       where: {
         userId,
+        currency,
         occurredAt: {
           [Op.gte]: periodFrom,
           [Op.lte]: periodTo,
@@ -115,7 +116,7 @@ export class DashboardService {
       expenses: fromMinorUnits(expensesMinor),
       savings: fromMinorUnits(savingsMinor),
       net: fromMinorUnits(netMinor),
-      currency: DEFAULT_CURRENCY,
+      currency,
       period: {
         from: periodFrom.toISOString(),
         to: periodTo.toISOString(),

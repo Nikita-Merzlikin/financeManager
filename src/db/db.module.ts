@@ -10,6 +10,7 @@ import { BankConnection } from "./dbModels/BankConnection";
 import { FinancialPlan } from "./dbModels/FinancialPlan";
 import { FinancialPlanCategory } from "./dbModels/FinancialPlanCategory";
 import { FinancialPlanDay } from "./dbModels/FinancialPlanDay";
+import { UserSettings } from "./dbModels/UserSettings";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -36,6 +37,7 @@ dotenv.config();
         FinancialPlan,
         FinancialPlanCategory,
         FinancialPlanDay,
+        UserSettings,
       ],
     }),
   ],
