@@ -8,6 +8,7 @@ import { FinancialPlan } from "src/db/dbModels/FinancialPlan";
 import { FinancialPlanCategory } from "src/db/dbModels/FinancialPlanCategory";
 import { FinancialPlanDay } from "src/db/dbModels/FinancialPlanDay";
 import { Transaction } from "src/db/dbModels/Transaction";
+import { SettingsModule } from "src/settings/settings.module";
 import { FinancialPlanAiService } from "./financial-plan-ai.service";
 import { FinancialPlanController } from "./financial-plan.controller";
 import { FinancialPlanService } from "./financial-plan.service";
@@ -22,6 +23,7 @@ import { FinancialPlanService } from "./financial-plan.service";
       Category,
       Account,
     ]),
+    SettingsModule,
   ],
   controllers: [FinancialPlanController],
   providers: [

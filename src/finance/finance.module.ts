@@ -5,6 +5,7 @@ import { BankConnection } from "src/db/dbModels/BankConnection";
 import { Category } from "src/db/dbModels/Category";
 import { Transaction } from "src/db/dbModels/Transaction";
 import { FinancialPlanModule } from "src/financial-plan/financial-plan.module";
+import { SettingsModule } from "src/settings/settings.module";
 import { AccountsService } from "./accounts.service";
 import { BankFactory } from "./banks/bank.factory";
 import { MonobankBank } from "./banks/monobank.bank";
@@ -27,6 +28,7 @@ import { WebhooksController } from "./webhooks.controller";
       BankConnection,
     ]),
     FinancialPlanModule,
+    SettingsModule,
   ],
   controllers: [FinanceController, WebhooksController],
   providers: [

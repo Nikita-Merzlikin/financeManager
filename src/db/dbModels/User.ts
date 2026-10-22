@@ -9,6 +9,7 @@ import {
 import { UserDto } from "src/core/dto/user.dto";
 import { Session } from "./Session";
 import { UserProfile } from "./UserProfile";
+import { UserSettings } from "./UserSettings";
 
 @Table({
   tableName: "Users",
@@ -49,6 +50,9 @@ export class User extends Model {
 
   @HasOne(() => UserProfile)
   declare profile: UserProfile;
+
+  @HasOne(() => UserSettings)
+  declare settings: UserSettings;
 
   declare createdAt: Date;
   declare updatedAt: Date;
