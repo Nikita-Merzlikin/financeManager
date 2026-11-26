@@ -23,11 +23,7 @@ import {
   FinancialPlanResponseDto,
   UpdateFinancialPlanDto,
 } from "src/core/dto/financial-plan.dto";
-import {
-  AccountType,
-  DEFAULT_CURRENCY,
-  TransactionType,
-} from "src/core/enums/finance.enums";
+import { AccountType, TransactionType } from "src/core/enums/finance.enums";
 import { FinancialPlanStatus } from "src/core/enums/financial-plan.enums";
 import { Account } from "src/db/dbModels/Account";
 import { Category } from "src/db/dbModels/Category";
@@ -41,6 +37,7 @@ import {
   parseMinorUnits,
   toMinorUnits,
 } from "src/finance/finance.utils";
+import { SettingsService } from "src/settings/settings.service";
 import { calculateBaselineSavings } from "./calculators/baseline-savings.calculator";
 import {
   aggregatePeriod,
@@ -76,6 +73,7 @@ export class FinancialPlanService {
     private readonly categoryModel: typeof Category,
     @InjectModel(Account)
     private readonly accountModel: typeof Account,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async create(
@@ -140,6 +138,8 @@ export class FinancialPlanService {
     }
 
     const startDate = toDateKey(asOf);
+    const currency =
+      dto.currency ?? (await this.settingsService.getPreferredCurrency(userId));
     const plan = await this.planModel.create({
       userId,
       status: FinancialPlanStatus.ACTIVE,
@@ -151,7 +151,7 @@ export class FinancialPlanService {
       targetAmount: formatMinorUnits(targetMinor),
       targetDate: toDateKey(targetDate),
       frequency: dto.frequency,
-      currency: dto.currency ?? DEFAULT_CURRENCY,
+      currency,
       startDate,
     });
 

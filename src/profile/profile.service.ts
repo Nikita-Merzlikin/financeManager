@@ -103,6 +103,25 @@ export class ProfileService {
     return profile.toDto();
   }
 
+  async deleteAvatar(userId: string): Promise<ProfileDto> {
+    const profile = await this.findByUserId(userId);
+    const previousAvatar = profile.avatar;
+
+    try {
+      await profile.update({ avatar: null });
+    } catch {
+      throw new InternalServerErrorException(
+        PROFILE_ERROR_MESSAGES.UPDATE_FAILED,
+      );
+    }
+
+    if (previousAvatar) {
+      await this.s3Service.delete(previousAvatar).catch(() => undefined);
+    }
+
+    return profile.toDto();
+  }
+
   private async findByUserId(userId: string): Promise<UserProfile> {
     const profile = await this.userProfileModel.findOne({ where: { userId } });
     if (!profile) {

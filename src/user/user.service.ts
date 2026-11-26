@@ -5,6 +5,7 @@ import { USER_ERROR_MESSAGES } from "src/core/constants/user-errors.constants";
 import { CreateUserDto, UserDto } from "src/core/dto/user.dto";
 import { User } from "src/db/dbModels/User";
 import { ProfileService } from "src/profile/profile.service";
+import { SettingsService } from "src/settings/settings.service";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -14,6 +15,7 @@ export class UserService {
     @InjectModel(User)
     private readonly userModel: typeof User,
     private readonly profileService: ProfileService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   toUserDto(user: User): UserDto {
@@ -41,6 +43,7 @@ export class UserService {
       firstName: userData.firstName,
       lastName: userData.lastName,
     });
+    await this.settingsService.createForUser(user.id);
 
     return user;
   }

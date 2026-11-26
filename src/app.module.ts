@@ -7,6 +7,7 @@ import { DatabaseModule } from "./db/db.module";
 import { FinanceModule } from "./finance/finance.module";
 import { FinancialPlanModule } from "./financial-plan/financial-plan.module";
 import { ProfileModule } from "./profile/profile.module";
+import { SettingsModule } from "./settings/settings.module";
 import { UserModule } from "./user/user.module";
 
 @Module({
@@ -15,6 +16,7 @@ import { UserModule } from "./user/user.module";
     UserModule,
     AuthModule,
     ProfileModule,
+    SettingsModule,
     FinanceModule,
     FinancialPlanModule,
     AiModule,
